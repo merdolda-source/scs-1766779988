@@ -1,0 +1,43 @@
+plugins {
+    id("com.android.application")
+    id("com.google.gms.google-services")
+}
+
+android {
+    namespace = "com.template"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.template"
+        minSdk = 21
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        debug {
+            isDebuggable = true
+        }
+        release {
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+
+    // 🔥 WEBVIEW
+    implementation("androidx.webkit:webkit:1.9.0")
+
+    // 🔥 FIREBASE (TEK FIREBASE – TÜM KULLANICILAR)
+    implementation("com.google.firebase:firebase-auth:22.3.1")
+    implementation("com.google.firebase:firebase-database:20.3.1")
+
+}
