@@ -1,0 +1,7 @@
+local.properties
+.gradle/
+build/
+app/build/
+node_modules/
+game/bundle.js
+game/shots/

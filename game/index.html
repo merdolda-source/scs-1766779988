@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Domino Sürpriz</title>
+<!-- Inline empty icon: the app ships with no network access, so a favicon
+     request would just fail inside the WebView. -->
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#070a14; --panel:#121829cc; --line:#26304d;
+    --text:#eef2ff; --dim:#93a0c4; --accent:#5ee0c0; --accent2:#ff5d7a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none}
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  .bar{position:fixed;left:0;right:0;display:flex;gap:8px;align-items:center;
+    padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;z-index:5}
+  #top{top:0}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+    padding:7px 11px;font-size:13px;line-height:1.1;backdrop-filter:blur(8px)}
+  .chip b{display:block;font-size:17px;font-weight:700;margin-top:2px}
+  .chip.wide{flex:1}
+  .grow{flex:1}
+  .flash{animation:sh .3s}
+  @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+  #track{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 92px);
+    height:5px;background:#1b2238;border-radius:99px;overflow:hidden;z-index:5}
+  #progressBar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));
+    transition:width .12s linear}
+
+  #bottom{bottom:0;flex-direction:column;padding:10px 12px calc(env(safe-area-inset-bottom) + 14px)}
+  button{font:inherit;color:var(--text);background:#1b2338;border:1px solid var(--line);
+    border-radius:13px;padding:13px 18px;font-weight:600;cursor:pointer}
+  button:active{transform:scale(.97)}
+  .primary{background:linear-gradient(135deg,var(--accent),#3fb6ff);color:#04121a;border:0;
+    width:100%;font-size:17px;padding:16px}
+  .row{display:flex;gap:8px;width:100%}
+  .row button{flex:1}
+  #speeds button{padding:10px}
+  #speeds button.on{background:var(--accent);color:#04121a;border-color:transparent}
+  #hint{font-size:12.5px;color:var(--dim);text-align:center;margin-bottom:2px}
+
+  .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+    background:#050810d9;backdrop-filter:blur(6px);padding:22px}
+  .card{background:#111729;border:1px solid var(--line);border-radius:20px;padding:24px;
+    width:100%;max-width:360px;text-align:center}
+  .card h2{margin:0;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600}
+  .card h1{margin:8px 0 2px;font-size:31px}
+  .big{font-size:44px;font-weight:800;color:var(--accent);margin:6px 0}
+  .card p{color:var(--dim);font-size:14px;margin:6px 0 18px;line-height:1.45}
+  .hidden{display:none !important}
+
+  #albumGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 18px}
+  .cell{background:#0d1324;border:1px solid var(--line);border-radius:12px;padding:12px 6px}
+  .cell b{display:block;font-size:14px}
+  .cell span{font-size:11px;color:var(--dim)}
+  .cell.locked{opacity:.4}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div class="bar" id="top">
+  <div class="chip"><span style="color:var(--dim)">Bölüm</span><b id="levelName">1</b></div>
+  <div class="chip"><span style="color:var(--dim)">Taş</span><b id="budget">0</b></div>
+  <div class="chip"><span style="color:var(--dim)">Süre</span><b id="estimate">~0 sn</b></div>
+  <div class="chip"><span style="color:var(--dim)">Açılan</span><b id="progress">%0</b></div>
+  <div class="grow"></div>
+  <button id="albumBtn" style="padding:10px 13px">Albüm</button>
+</div>
+
+<div id="track"><div id="progressBar"></div></div>
+
+<div class="bar" id="bottom">
+  <div id="hint">Boşlukları birleştirmek için <b>akış yönünde</b> parmağını sürükle</div>
+  <button class="primary" id="startBtn">BAŞLAT</button>
+  <div class="row" id="speeds">
+    <button data-speed="1" class="on">1x</button>
+    <button data-speed="2">2x</button>
+    <button data-speed="4">4x</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button id="resetBtn">Yeniden Kur</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="result">
+  <div class="card">
+    <h2>Ortaya çıkan resim</h2>
+    <h1 id="resultTitle">—</h1>
+    <div class="big" id="resultPct">%0</div>
+    <p id="resultNote"></p>
+    <div class="row">
+      <button id="retryBtn">Tekrar</button>
+      <button class="primary" id="nextBtn" style="width:auto">Sonraki</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="albumPanel">
+  <div class="card">
+    <h2>Koleksiyon</h2>
+    <h1>Albüm</h1>
+    <div id="albumGrid"><div id="album" style="display:contents"></div></div>
+    <button id="albumClose" style="width:100%">Kapat</button>
+  </div>
+</div>
+
+<script src="bundle.js"></script>
+</body>
+</html>
