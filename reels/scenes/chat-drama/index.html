@@ -78,31 +78,21 @@
   const track = $('track');
   const items = []; // {el, kind:'msg'|'typing'|'sys', at, dur}
 
-  // Her mesajdan once kisa bir 'yaziyor...' balonu -> gercek sohbet temposu.
-  // Okumaya zaman biraksin diye her baloncuk daha uzun ekranda kalir; oncekinden
-  // cok daha hizli akiyordu ve metin daha belirmeden bir sonraki basliyordu.
-  const TYPE_DUR = 0.75;
-  const GAP = 0.55;
-  let t = 0.45;
-
-  D.messages.forEach((m) => {
-    if (m.typingBefore) {
-      const tEl = document.createElement('div');
-      tEl.className = 'row ' + (m.dir === 'out' ? 'out' : 'in') + ' typing';
-      tEl.innerHTML = `<div class="bub"><div class="dots"><i></i><i></i><i></i></div></div>`;
-      track.appendChild(tEl);
-      items.push({ el: tEl, at: t, dur: TYPE_DUR, remove: true });
-      t += TYPE_DUR + 0.12;
-    }
-    if (m.sys) {
-      const el = document.createElement('div');
-      el.className = 'sys';
-      el.textContent = m.text;
-      track.appendChild(el);
-      items.push({ el, at: t, dur: 0.4 });
-      t += 0.75;
-      return;
-    }
+  function addTyping(dir, at, dur) {
+    const tEl = document.createElement('div');
+    tEl.className = 'row ' + (dir === 'out' ? 'out' : 'in') + ' typing';
+    tEl.innerHTML = `<div class="bub"><div class="dots"><i></i><i></i><i></i></div></div>`;
+    track.appendChild(tEl);
+    items.push({ el: tEl, at, dur, remove: true });
+  }
+  function addSys(text, at, dur) {
+    const el = document.createElement('div');
+    el.className = 'sys';
+    el.textContent = text;
+    track.appendChild(el);
+    items.push({ el, at, dur });
+  }
+  function addMsg(m, at, dur) {
     const el = document.createElement('div');
     el.className = 'row ' + (m.dir === 'out' ? 'out' : 'in');
     el.innerHTML = `<div class="bub">
@@ -111,10 +101,38 @@
         <div class="time">${m.time}${m.dir === 'out' ? ' ✓✓' : ''}</div>
       </div>`;
     track.appendChild(el);
-    const dur = 0.4;
-    items.push({ el, at: t, dur, height: true });
-    t += dur + GAP + Math.min(2.1, m.text.length * 0.030);
-  });
+    items.push({ el, at, dur: 0.4, height: true });
+  }
+
+  let t;
+  if (D.items) {
+    // Timeline already computed in Node from real voice-clip durations - each
+    // bubble stays up exactly as long as its line takes to say, which a
+    // length heuristic here could only guess at.
+    for (const it of D.items) {
+      if (it.typing) addTyping(it.dir, it.at, it.dur);
+      else if (it.sys) addSys(it.text, it.at, it.dur);
+      else addMsg(it, it.at, it.dur);
+    }
+    // Node already computed an authoritative total (it built the mixed voice
+    // track against this exact number); using it here instead of re-deriving
+    // one guarantees the video's frame count and the audio's length agree, so
+    // ffmpeg's -shortest never truncates either one against the other.
+    t = D.totalDuration || Math.max(...D.items.map((it) => it.at + it.dur));
+  } else {
+    // No precomputed timeline (e.g. the pre-match script, not yet voiced):
+    // fall back to a length-based guess, with a typing beat before each line
+    // for chat rhythm.
+    const TYPE_DUR = 0.75;
+    const GAP = 0.55;
+    t = 0.45;
+    D.messages.forEach((m) => {
+      if (m.typingBefore) { addTyping(m.dir, t, TYPE_DUR); t += TYPE_DUR + 0.12; }
+      if (m.sys) { addSys(m.text, t, 0.4); t += 0.75; return; }
+      addMsg(m, t, 0.4);
+      t += 0.4 + GAP + Math.min(2.1, m.text.length * 0.030);
+    });
+  }
 
   const lastAt = t + 0.4;
   $('foot').style.display = 'block';
@@ -151,6 +169,6 @@
   // Real arrivals only - typing indicators are placeholders, not messages, and
   // popping on those would fire twice per bubble instead of once.
   const beats = items.filter((it) => !it.remove).map((it) => it.at);
-  window.__scene = { duration: T.end, seek, beats, meta: { messages: D.messages.length } };
+  window.__scene = { duration: T.end, seek, beats, meta: { messages: (D.items || D.messages || []).length } };
 })();
 </script></body></html>

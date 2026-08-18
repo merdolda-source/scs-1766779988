@@ -70,6 +70,13 @@ export async function renderScene({
   ]);
   const ffErr = [];
   ff.stderr.on('data', (d) => ffErr.push(d.toString()));
+  // If ffmpeg exits early (bad input, bad args) it closes stdin from its end;
+  // the next frame write then throws EPIPE as an unhandled 'error' event on
+  // the stream, which crashes the whole process before the exit code and
+  // stderr below ever get a chance to explain why. Swallowing it here lets
+  // the close handler run and report the real ffmpeg error instead.
+  let stdinBroken = false;
+  ff.stdin.on('error', () => { stdinBroken = true; });
 
   const page = await b.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   const errors = [];
@@ -90,7 +97,16 @@ export async function renderScene({
     const coverFrame = Math.min(total - 1, Math.max(0, Math.round(coverTime * fps)));
     const coverPath = out.replace(/\.mp4$/, '-cover.jpg');
 
+    // This runs unattended (a scheduled job, a live-match watcher with no one
+    // reading its logs); a single scene stalling should fail loudly rather
+    // than sit forever burning the run's time budget.
+    const MAX_RENDER_MS = 5 * 60 * 1000;
+
     for (let f = 0; f < total; f++) {
+      if (stdinBroken) break; // ffmpeg already died; stop feeding it and go report why
+      if (Date.now() - t0 > MAX_RENDER_MS) {
+        throw new Error(`render taking too long (>${MAX_RENDER_MS / 1000}s at frame ${f}/${total}), aborting`);
+      }
       await page.evaluate((t) => window.__scene.seek(t), f / fps);
       const buf = await page.screenshot(
         format === 'png' ? { type: 'png' } : { type: 'jpeg', quality: 95 });
@@ -98,10 +114,24 @@ export async function renderScene({
         fs.writeFileSync(coverPath,
           await page.screenshot({ type: 'jpeg', quality: 92 }));
       }
-      if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));
+      if (!stdinBroken && !ff.stdin.write(buf)) {
+        // A broken/destroyed stream never emits 'drain' - awaiting it alone
+        // hangs forever (seen in practice: a render sat for minutes with zero
+        // CPU movement). Racing it against 'close'/'error' means a dead
+        // ffmpeg is noticed within one frame instead of stalling the job.
+        await new Promise((resolve) => {
+          const done = () => { cleanup(); resolve(); };
+          const cleanup = () => {
+            ff.stdin.off('drain', done); ff.stdin.off('error', done); ff.off('close', done);
+          };
+          ff.stdin.once('drain', done);
+          ff.stdin.once('error', done);
+          ff.once('close', done);
+        });
+      }
     }
 
-    ff.stdin.end();
+    if (!stdinBroken) ff.stdin.end();
     const code = await new Promise((r) => ff.on('close', r));
     if (code !== 0) throw new Error('ffmpeg failed: ' + ffErr.join(''));
 

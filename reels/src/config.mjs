@@ -91,6 +91,11 @@ export const config = {
     get live() { return Boolean(env.GIT_HOST_REPO || env.GITHUB_REPOSITORY); },
   },
 
+  tts: {
+    apiKey: env.ELEVENLABS_API_KEY || '',
+    get live() { return Boolean(env.ELEVENLABS_API_KEY); },
+  },
+
   handle: env.IG_HANDLE || '@hesap',
   timezone: env.TZ_NAME || 'Europe/Istanbul',
 

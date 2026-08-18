@@ -48,7 +48,7 @@ const now = () => {
 };
 
 function msg(who, text, time, opts = {}) {
-  return { dir: 'in', name: CAST[who].name, color: CAST[who].color, text, time, typingBefore: true, ...opts };
+  return { dir: 'in', name: CAST[who].name, color: CAST[who].color, voiceKey: who, text, time, typingBefore: true, ...opts };
 }
 function me(text, time) { return { dir: 'out', text, time, typingBefore: true }; }
 function sys(text) { return { sys: true, text }; }
