@@ -148,6 +148,9 @@
   }
 
   seek(0);
-  window.__scene = { duration: T.end, seek, meta: { messages: D.messages.length } };
+  // Real arrivals only - typing indicators are placeholders, not messages, and
+  // popping on those would fire twice per bubble instead of once.
+  const beats = items.filter((it) => !it.remove).map((it) => it.at);
+  window.__scene = { duration: T.end, seek, beats, meta: { messages: D.messages.length } };
 })();
 </script></body></html>

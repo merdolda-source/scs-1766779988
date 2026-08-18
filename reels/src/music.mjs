@@ -99,10 +99,15 @@ const STYLE = {
   anthem: { bpm: 104, prog: PROG.anthem, crowd: 0.085, brass: 0.30, toms: true, drive: 0.9 },
   goal: { bpm: 140, prog: PROG.goal, crowd: 0.16, brass: 0.42, toms: true, drive: 1.15 },
   calm: { bpm: 96, prog: PROG.calm, crowd: 0.035, brass: 0.15, toms: false, drive: 0.7 },
+  // A stadium anthem under a fake chat read as mismatched - a dialogue format
+  // needs near-silence with texture, not a drum-and-brass bed competing with
+  // the thing the viewer is trying to read.
+  chat: { bpm: 84, prog: PROG.calm, crowd: 0, brass: 0, toms: false, drive: 0.35 },
 };
 
-function render(seconds, styleName) {
+function render(seconds, styleName, beats = []) {
   const st = STYLE[styleName] || STYLE.anthem;
+  const isChat = styleName === 'chat';
   const BEAT = 60 / st.bpm;
   const BAR = BEAT * 4;
   const n = Math.ceil(seconds * SR);
@@ -127,58 +132,78 @@ function render(seconds, styleName) {
     let dry = 0;
     let wet = 0;
 
-    // --- drums
-    for (const b of [0, 2]) dry += kick((beat - b) * BEAT) * 1.0;
-    if (styleName !== 'calm') dry += kick((beat - 3.5) * BEAT) * 0.55;
-    for (const b of [1, 3]) dry += snare((beat - b) * BEAT, nz) * 0.42;
+    if (!isChat) {
+      // --- drums
+      for (const b of [0, 2]) dry += kick((beat - b) * BEAT) * 1.0;
+      if (styleName !== 'calm') dry += kick((beat - 3.5) * BEAT) * 0.55;
+      for (const b of [1, 3]) dry += snare((beat - b) * BEAT, nz) * 0.42;
 
-    const eighth = Math.floor(beat * 2);
-    const dtH = (beat * 2 - eighth) * (BEAT / 2);
-    dry += hat(dtH, nz, eighth % 4 === 3) * (eighth % 2 ? 0.10 : 0.15);
+      const eighth = Math.floor(beat * 2);
+      const dtH = (beat * 2 - eighth) * (BEAT / 2);
+      dry += hat(dtH, nz, eighth % 4 === 3) * (eighth % 2 ? 0.10 : 0.15);
 
-    if (st.toms && bar % 4 === 3) {
-      // Fill on the last bar of each phrase.
-      const s16 = Math.floor(beat * 4);
-      const dtT = (beat * 4 - s16) * (BEAT / 4);
-      if (s16 >= 8) dry += tom(dtT, 140 - (s16 - 8) * 8) * 0.45;
+      if (st.toms && bar % 4 === 3) {
+        const s16f = Math.floor(beat * 4);
+        const dtT = (beat * 4 - s16f) * (BEAT / 4);
+        if (s16f >= 8) dry += tom(dtT, 140 - (s16f - 8) * 8) * 0.45;
+      }
+
+      // --- bass
+      const dtB = (beat % 2) * BEAT;
+      const be = adsr(dtB, 0.006, 0.10, 0.5);
+      dry += Math.sin(2 * Math.PI * step.root * t) * be * 0.50;
+      dry += Math.sin(4 * Math.PI * step.root * t) * be * 0.12;
+
+      // --- brass stabs on the offbeats
+      const stab = Math.floor(beat * 2);
+      const dtS = (beat * 2 - stab) * (BEAT / 2);
+      if (stab % 2 === 0 || styleName === 'goal') {
+        let br = 0;
+        for (const f of step.chord) br += sawStack(t, f);
+        br *= adsr(dtS, 0.012, 0.03, 0.16) * st.brass;
+        dry += br;
+        wet += br * 0.35;
+      }
+    } else {
+      // Just a soft, slow-moving pad - texture under the chat, nothing that
+      // competes with the reader's attention or a message pop.
+      let pad = 0;
+      for (const f of step.chord) pad += Math.sin(2 * Math.PI * f * 0.5 * t);
+      dry += (pad / step.chord.length) * 0.10 * (0.7 + 0.3 * Math.sin(t * 0.25));
     }
 
-    // --- bass
-    const dtB = (beat % 2) * BEAT;
-    const be = adsr(dtB, 0.006, 0.10, 0.5);
-    dry += Math.sin(2 * Math.PI * step.root * t) * be * 0.50;
-    dry += Math.sin(4 * Math.PI * step.root * t) * be * 0.12;
-
-    // --- brass stabs on the offbeats
-    const stab = Math.floor(beat * 2);
-    const dtS = (beat * 2 - stab) * (BEAT / 2);
-    if (stab % 2 === 0 || styleName === 'goal') {
-      let br = 0;
-      for (const f of step.chord) br += sawStack(t, f);
-      br *= adsr(dtS, 0.012, 0.03, 0.16) * st.brass;
-      dry += br;
-      wet += br * 0.35;
-    }
-
-    // --- arpeggio sparkle
+    // --- arpeggio sparkle (kept faint even in chat mode - a little life, not a lead)
     const s16 = Math.floor(beat * 4);
     const dtA = (beat * 4 - s16) * (BEAT / 4);
     const tone = step.chord[s16 % step.chord.length] * 2;
-    dry += tri(t, tone) * adsr(dtA, 0.003, 0.01, 0.06) * 0.13;
+    dry += tri(t, tone) * adsr(dtA, 0.003, 0.01, 0.06) * (isChat ? 0.045 : 0.13);
 
-    // --- crowd
-    const raw = crowdN();
-    lp1 += (raw - lp1) * 0.02;
-    lp2 += (lp1 - lp2) * 0.02;
-    hpState += (lp2 - hpState) * 0.0008;
-    const swell = 0.65 + 0.35 * Math.sin(t * 0.55);
-    dry += (lp2 - hpState) * st.crowd * swell * 6;
+    if (!isChat) {
+      // --- crowd
+      const raw = crowdN();
+      lp1 += (raw - lp1) * 0.02;
+      lp2 += (lp1 - lp2) * 0.02;
+      hpState += (lp2 - hpState) * 0.0008;
+      const swell = 0.65 + 0.35 * Math.sin(t * 0.55);
+      dry += (lp2 - hpState) * st.crowd * swell * 6;
+    }
 
     // --- delay send
     const d = delay[dIdx];
     dry += d * 0.32;
     delay[dIdx] = wet + d * 0.28;
     dIdx = (dIdx + 1) % delayLen;
+
+    // --- message pop: a short, bright blip at each bubble's arrival time,
+    // matching what a real chat app plays on receive. This is what actually
+    // ties the audio to the format instead of running underneath it unrelated.
+    for (const bt of beats) {
+      const bdt = t - bt;
+      if (bdt >= 0 && bdt < 0.09) {
+        const f = 1450 - bdt * 4200;
+        dry += Math.sin(2 * Math.PI * f * bdt) * Math.exp(-bdt / 0.03) * 0.30;
+      }
+    }
 
     out[i] = Math.tanh(dry * st.drive * 0.62);
   }
@@ -226,12 +251,23 @@ export const STYLES = Object.keys(STYLE);
 export function styleForScene(scene) {
   if (scene === 'goal') return 'goal';
   if (scene === 'standings' || scene === 'fixtures') return 'calm';
+  if (scene === 'chat-drama') return 'chat';
   return 'anthem';
 }
 
-export function makeTrack(seconds, dir, style = 'anthem') {
+// `beats` are message-arrival times (seconds) for the chat-pop hits. Chat
+// tracks are cued to a specific script, so they are not filename-cached the
+// way the other styles are - re-synthesising a few seconds of light pad audio
+// costs nothing, and caching by content would need hashing the beat list.
+export function makeTrack(seconds, dir, style = 'anthem', beats = []) {
   const secs = Math.ceil(seconds) + 1;
   const name = STYLE[style] ? style : 'anthem';
+  if (name === 'chat' && beats.length) {
+    const file = path.join(dir, `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.wav`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, toWav(render(secs, name, beats)));
+    return file;
+  }
   const file = path.join(dir, `${name}-${secs}s.wav`);
   if (fs.existsSync(file)) return file;
   fs.mkdirSync(dir, { recursive: true });

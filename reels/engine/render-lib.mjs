@@ -35,21 +35,25 @@ export async function renderScene({
   fs.mkdirSync(path.dirname(out), { recursive: true });
 
   const page0 = await b.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
-  let duration;
+  let duration, beats;
   try {
     await page0.addInitScript((d) => { window.__DATA = d; }, data);
     await page0.goto('file://' + path.join(sceneDir, 'index.html'));
     await page0.waitForFunction(() => !!window.__scene, null, { timeout: 20000 });
     duration = await page0.evaluate(() => window.__scene.duration);
+    // Scenes may expose message/beat arrival times (e.g. chat bubbles) for
+    // audio to sync against; scenes without them just get an empty array.
+    beats = await page0.evaluate(() => window.__scene.beats || []);
   } finally {
     await page0.close();
   }
 
   // The bed follows the scene: goal alerts get the cue with the riser, tables
-  // get something that stays out of the way.
+  // get something that stays out of the way, chat gets near-silence with a pop
+  // timed to each bubble instead of a stadium anthem competing with the text.
   const audioPath = audio === 'auto'
     ? makeTrack(duration, path.join(path.dirname(out), '_audio'),
-        styleForScene(path.basename(sceneDir)))
+        styleForScene(path.basename(sceneDir)), beats)
     : audio;
 
   const ff = spawn('ffmpeg', [
@@ -100,6 +104,14 @@ export async function renderScene({
     ff.stdin.end();
     const code = await new Promise((r) => ff.on('close', r));
     if (code !== 0) throw new Error('ffmpeg failed: ' + ffErr.join(''));
+
+    // Beat-synced audio (chat pops) is cued to one specific script and gets a
+    // fresh random filename each render rather than the deterministic
+    // {style}-{seconds}s.wav the other tracks reuse - it is muxed into `out`
+    // already, so nothing needs the loose wav sitting in _audio afterward.
+    if (beats.length && audioPath && fs.existsSync(audioPath)) {
+      fs.rmSync(audioPath, { force: true });
+    }
 
     const size = fs.statSync(out).size;
     return {
