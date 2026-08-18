@@ -72,6 +72,15 @@ export const config = {
     get live() { return Boolean(env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY); },
   },
 
+  // Free fallback host. In Actions GITHUB_TOKEN and GITHUB_REPOSITORY are
+  // present automatically; the repo must be public for the URLs to be reachable.
+  releases: {
+    token: env.GITHUB_TOKEN || env.GH_TOKEN || '',
+    repo: env.GITHUB_REPOSITORY || '',
+    tag: env.RELEASE_TAG || 'reels',
+    get live() { return Boolean((env.GITHUB_TOKEN || env.GH_TOKEN) && env.GITHUB_REPOSITORY); },
+  },
+
   handle: env.IG_HANDLE || '@hesap',
   timezone: env.TZ_NAME || 'Europe/Istanbul',
 
@@ -89,6 +98,6 @@ export function describeMode() {
   return {
     data: config.data.usePhp ? 'php endpoint' : 'sporx (doğrudan)',
     instagram: config.instagram.live ? 'live' : 'dry-run',
-    storage: config.storage.live ? 'live' : 'local',
+    storage: config.storage.live ? 's3' : config.releases.live ? 'github-release' : 'local',
   };
 }

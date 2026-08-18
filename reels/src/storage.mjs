@@ -9,11 +9,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.mjs';
 
+// Two backends. S3 is the durable one. GitHub Releases is the free fallback:
+// on a public repo, release assets have public download URLs and, unlike files
+// committed to the tree, they do not grow the git history - which matters when
+// this uploads several videos a day forever.
+
 const hmac = (key, str) => crypto.createHmac('sha256', key).update(str).digest();
 const sha256hex = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
 export async function uploadVideo(localPath, key) {
   if (!config.storage.live) {
+    if (config.releases.live) return uploadToRelease(localPath, key);
     return { uploaded: false, url: null, reason: 'storage not configured', localPath };
   }
 
@@ -57,4 +63,70 @@ export async function uploadVideo(localPath, key) {
 
   const base = publicBase || `${endpoint.replace(/\/$/, '')}/${bucket}`;
   return { uploaded: true, url: `${base}/${key}`, bytes: body.length };
+}
+
+
+// ---- GitHub Releases backend ----------------------------------------------
+
+async function gh(url, init = {}) {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${config.releases.token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(init.headers || {}),
+    },
+  });
+  const text = await res.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  return { ok: res.ok, status: res.status, body };
+}
+
+async function ensureRelease(repo, tag) {
+  const found = await gh(`https://api.github.com/repos/${repo}/releases/tags/${tag}`);
+  if (found.ok) return found.body;
+
+  const made = await gh(`https://api.github.com/repos/${repo}/releases`, {
+    method: 'POST',
+    body: JSON.stringify({
+      tag_name: tag,
+      name: 'Yayınlanan reels',
+      body: 'Instagram bu videoları herkese açık bir URL üzerinden çekiyor. '
+        + 'Depo geçmişini şişirmemek için dosyalar burada tutuluyor.',
+    }),
+  });
+  if (!made.ok) throw new Error(`release oluşturulamadı: ${made.status} ${JSON.stringify(made.body)}`);
+  return made.body;
+}
+
+async function uploadToRelease(localPath, key) {
+  const { repo, tag, token } = config.releases;
+  const release = await ensureRelease(repo, tag);
+  const name = key.replace(/[^a-zA-Z0-9._-]/g, '-');
+
+  // Asset names are unique per release, so replace any leftover from a rerun.
+  const existing = (release.assets || []).find((a) => a.name === name);
+  if (existing) {
+    await gh(`https://api.github.com/repos/${repo}/releases/assets/${existing.id}`, { method: 'DELETE' });
+  }
+
+  const body = fs.readFileSync(localPath);
+  const res = await fetch(
+    `https://uploads.github.com/repos/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'video/mp4',
+        'Content-Length': String(body.length),
+      },
+      body,
+    });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`asset yüklenemedi: ${res.status} ${JSON.stringify(json)}`);
+
+  return { uploaded: true, url: json.browser_download_url, bytes: body.length, backend: 'github-release' };
 }

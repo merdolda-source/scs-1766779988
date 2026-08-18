@@ -46,16 +46,16 @@ try {
 } catch (e) { bad('veri: puan durumu', e.message); }
 
 // --- storage ---------------------------------------------------------------
-if (!config.storage.live) {
-  skip('depolama', 'yapılandırılmadı — S3_* değerleri boş');
+if (!config.storage.live && !config.releases.live) {
+  skip('depolama', 'yapılandırılmadı — S3_* boş ve GitHub Releases yedeği yok');
 } else {
-  const probe = path.join(config.outDir, '.doctor-probe.txt');
+  const probe = path.join(config.outDir, 'doctor-probe.mp4');
   fs.mkdirSync(config.outDir, { recursive: true });
   fs.writeFileSync(probe, 'doctor ' + Date.now());
   try {
-    const up = await uploadVideo(probe, `doctor/probe-${Date.now()}.txt`);
+    const up = await uploadVideo(probe, `doctor-probe-${Date.now()}.mp4`);
     const res = await fetch(up.url, { signal: AbortSignal.timeout(15000) });
-    if (res.ok) ok('depolama', `yükleme + herkese açık okuma çalışıyor (${up.url.split('/').slice(0, 3).join('/')})`);
+    if (res.ok) ok('depolama', `${up.backend || 's3'} · yükleme + herkese açık okuma çalışıyor`);
     else bad('depolama', `yüklendi ama herkese açık DEĞİL (GET ${res.status}). Instagram videoyu çekemez.`);
   } catch (e) { bad('depolama', e.message); }
   finally { fs.rmSync(probe, { force: true }); }

@@ -68,6 +68,10 @@ jobs:
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           S3_PUBLIC_BASE: ${{ secrets.S3_PUBLIC_BASE }}
+          # S3 yoksa videolar bu depoya release varlığı olarak yüklenir ve
+          # oradan yayınlanır. Depo herkese açık olmalı.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           POSTS_PER_DAY: ${{ vars.POSTS_PER_DAY || '2' }}
           POSTS_MATCH_DAY: ${{ vars.POSTS_MATCH_DAY || '4' }}
           QUIET_DAY_CHANCE: ${{ vars.QUIET_DAY_CHANCE || '0.15' }}
