@@ -39,7 +39,9 @@ export const config = {
   data: {
     base: (env.DATA_BASE_URL || '').replace(/\/$/, ''),
     lig: env.DATA_LIG || 'super-lig',
-    get live() { return Boolean(env.DATA_BASE_URL); },
+    // Default is reading sporx directly; a base URL routes through the
+    // project's own PHP endpoints instead.
+    get usePhp() { return Boolean(env.DATA_BASE_URL); },
   },
 
   instagram: {
@@ -74,7 +76,7 @@ export const config = {
 
 export function describeMode() {
   return {
-    data: config.data.live ? 'live' : 'mock',
+    data: config.data.usePhp ? 'php endpoint' : 'sporx (doğrudan)',
     instagram: config.instagram.live ? 'live' : 'dry-run',
     storage: config.storage.live ? 'live' : 'local',
   };

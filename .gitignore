@@ -10,3 +10,4 @@ dist/reels/
 reels/out/
 reels/.env
 reels/data/posted.json
+reels/data/cache/

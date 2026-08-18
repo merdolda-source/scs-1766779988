@@ -41,7 +41,7 @@
 <script>
 (function(){
   const D=window.__DATA, $=(id)=>document.getElementById(id);
-  const matches=(D.matches||[]).slice(0,8);
+  const matches=(D.matches||[]).slice(0,10);
   const T={head:[0.15,1.0], row0:1.15, step:0.40, dur:0.6};
   T.foot=[T.row0+matches.length*T.step+0.9, T.row0+matches.length*T.step+1.6];
   T.end=T.foot[1]+2.2;

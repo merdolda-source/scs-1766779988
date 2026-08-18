@@ -9,6 +9,7 @@
 // statistics (possession, shots, corners) or goalscorers. Scenes are built to
 // degrade when those are absent rather than to assume them.
 import { config } from './config.mjs';
+import * as scrape from './sporx-scrape.mjs';
 
 const SHORTS = {
   'Galatasaray': 'GS', 'Fenerbahçe': 'FB', 'Beşiktaş': 'BJK', 'Trabzonspor': 'TS',
@@ -18,6 +19,7 @@ const SHORTS = {
   'Gaziantep FK': 'GFK', 'Sivasspor': 'SİV', 'Kasımpaşa': 'KSM', 'Göztepe': 'GÖZ',
   'Eyüpspor': 'EYP', 'Bodrum FK': 'BOD', 'Hatayspor': 'HAT', 'Kocaelispor': 'KOC',
   'Gençlerbirliği': 'GB', 'Fatih Karagümrük': 'KRG',
+  'Amed Sportif': 'AMD', 'Arca Çorum': 'ÇRM', 'Erzurumspor': 'ERZ',
 };
 
 const COLORS = {
@@ -32,6 +34,8 @@ const COLORS = {
   'Kasımpaşa': ['#0B2545', '#E4032E'], 'Kocaelispor': ['#0B6E4F', '#111111'],
   'Gençlerbirliği': ['#E4032E', '#111111'], 'Hatayspor': ['#7A1E2E', '#F5D400'],
   'Bodrum FK': ['#0B6E4F', '#FFFFFF'], 'Fatih Karagümrük': ['#E4032E', '#111111'],
+  'Amed Sportif': ['#2FA84F', '#D42027'], 'Arca Çorum': ['#C8102E', '#111111'],
+  'Erzurumspor': ['#0B4EA2', '#D8D8D8'], 'Samsunspor': ['#E4032E', '#1D2B53'],
 };
 
 export function shortOf(name) {
@@ -66,19 +70,29 @@ function toDate(tarih, saat, now = new Date()) {
 }
 
 function normaliseMatch(m, now) {
-  const when = toDate(m.tarih, m.saat, now);
+  // The scraper supplies a real ISO date read off the team page; the PHP
+  // endpoint only gives GG.AA, so the year is inferred there.
+  const when = m.isoDate
+    ? new Date(`${m.isoDate}T${/^\d{1,2}:\d{2}$/.test(m.saat || '') ? m.saat : '00:00'}:00`)
+    : toDate(m.tarih, m.saat, now);
   return {
     home: side(m.takim1, m.skor1),
     away: side(m.takim2, m.skor2),
     time: m.saat || '',
     dateText: m.tarih || '',
-    kickoff: when ? when.toISOString() : null,
+    kickoff: when && !Number.isNaN(+when) ? when.toISOString() : null,
     status: m.durum || 'baslamadi',
     statusText: m.durumYazisi || '',
     finished: m.durum === 'bitti',
     live: m.durum === 'canli',
     url: m.macUrl || null,
   };
+}
+
+function phpUrl(file, params) {
+  const u = new URL(config.data.base + '/' + file);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
+  return u;
 }
 
 async function getJson(url) {
@@ -89,117 +103,26 @@ async function getJson(url) {
   return body;
 }
 
-// ---- mock: mirrors the exact JSON these endpoints return -------------------
-
-function mockFixtureResponse(now, hafta) {
-  const CURRENT = 5;
-  const week = hafta || CURRENT;
-  const d = (offsetDays) => {
-    const x = new Date(now.getTime() + offsetDays * 86400000);
-    return String(x.getDate()).padStart(2, '0') + '.' + String(x.getMonth() + 1).padStart(2, '0');
-  };
-
-  // Past weeks come back played, so form can be derived offline exactly as it
-  // would be against the live endpoint.
-  if (week < CURRENT) {
-    const past = [
-      { opp: 'Kayserispor', home: true,  a: 2, b: 0 },
-      { opp: 'Eyüpspor',    home: false, a: 1, b: 1 },
-      { opp: 'Göztepe',     home: true,  a: 3, b: 2 },
-      { opp: 'Beşiktaş',    home: false, a: 0, b: 1 },
-    ][week - 1] || { opp: 'Konyaspor', home: true, a: 1, b: 0 };
-    const us = 'Galatasaray';
-    return {
-      basarili: true, lig: 'super-lig', ligAdi: 'Süper Lig',
-      hafta: week, maxHafta: 36, aktifHafta: CURRENT,
-      maclar: [{
-        takim1: past.home ? us : past.opp, takim2: past.home ? past.opp : us,
-        saat: '20:00', tarih: d(-7 * (CURRENT - week)),
-        durum: 'bitti', durumYazisi: 'MS',
-        skor1: String(past.home ? past.a : past.b),
-        skor2: String(past.home ? past.b : past.a),
-        macUrl: 'https://m.sporx.com/maci-canli-' + (200 + week),
-        takim1Logo: null, takim2Logo: null,
-      }],
-    };
-  }
-
-  return {
-    basarili: true, lig: 'super-lig', ligAdi: 'Süper Lig',
-    hafta: CURRENT, maxHafta: 36, aktifHafta: CURRENT,
-    maclar: [
-      { takim1: 'Galatasaray', takim2: 'Trabzonspor', saat: '20:00', tarih: d(0),
-        durum: 'bitti', durumYazisi: 'MS', skor1: '3', skor2: '1',
-        macUrl: 'https://m.sporx.com/maci-canli-101', takim1Logo: null, takim2Logo: null },
-      { takim1: 'Fenerbahçe', takim2: 'Samsunspor', saat: '17:00', tarih: d(0),
-        durum: 'canli', durumYazisi: "67'", skor1: '1', skor2: '1',
-        macUrl: 'https://m.sporx.com/maci-canli-102', takim1Logo: null, takim2Logo: null },
-      { takim1: 'Beşiktaş', takim2: 'Göztepe', saat: '20:00', tarih: d(1),
-        durum: 'baslamadi', durumYazisi: '', skor1: '', skor2: '',
-        macUrl: 'https://m.sporx.com/maci-canli-103', takim1Logo: null, takim2Logo: null },
-      { takim1: 'Konyaspor', takim2: 'Alanyaspor', saat: '17:00', tarih: d(1),
-        durum: 'baslamadi', durumYazisi: '', skor1: '', skor2: '',
-        macUrl: 'https://m.sporx.com/maci-canli-104', takim1Logo: null, takim2Logo: null },
-      { takim1: 'Kasımpaşa', takim2: 'Galatasaray', saat: '19:00', tarih: d(4),
-        durum: 'baslamadi', durumYazisi: '', skor1: '', skor2: '',
-        macUrl: 'https://m.sporx.com/maci-canli-105', takim1Logo: null, takim2Logo: null },
-    ],
-  };
-}
-
-function mockStandingsResponse() {
-  // Kept consistent with the mock fixtures above: a demo whose table contradicts
-  // its own form strip looks like a bug in the renderer.
-  const teams = [
-    ['Fenerbahçe', 5, 4, 1, 0, 12, 4], ['Galatasaray', 5, 3, 1, 1, 9, 5],
-    ['Trabzonspor', 5, 3, 1, 1, 9, 6], ['Beşiktaş', 5, 3, 0, 2, 8, 6],
-    ['Samsunspor', 5, 2, 2, 1, 7, 5], ['Göztepe', 5, 2, 1, 2, 6, 6],
-    ['Başakşehir', 5, 2, 1, 2, 5, 6], ['Konyaspor', 5, 1, 2, 2, 4, 6],
-    ['Alanyaspor', 5, 1, 1, 3, 4, 8], ['Kasımpaşa', 5, 0, 1, 4, 2, 12],
-  ];
-  return {
-    basarili: true, lig: 'super-lig', ligAdi: 'Süper Lig',
-    veri: {
-      genel: teams.map(([takim, o, g, b, m, a, y], i) => ({
-        sira: i + 1, bolge: i < 2 ? 'Şampiyonlar Ligi' : null, logo: null, takim,
-        oynanan: o, galibiyet: g, berabere: b, maglubiyet: m,
-        attigi: a, yedigi: y, averaj: a - y, puan: g * 3 + b,
-      })),
-      icSaha: [], disSaha: [],
-    },
-  };
-}
-
 // ---- public ---------------------------------------------------------------
 
 export async function getFixtures({ lig = 'super-lig', hafta = null, now = new Date() } = {}) {
-  let body;
-  if (!config.data.live) {
-    body = mockFixtureResponse(now, hafta);
-  } else {
-    const u = new URL(config.data.base + '/fikstur.php');
-    u.searchParams.set('lig', lig);
-    if (hafta) u.searchParams.set('hafta', String(hafta));
-    body = await getJson(u);
-  }
+  const body = config.data.usePhp
+    ? await getJson(phpUrl('fikstur.php', { lig, ...(hafta ? { hafta } : {}) }))
+    : await scrape.getWeek(lig, hafta);
   return {
     league: body.ligAdi,
     week: body.hafta,
     maxWeek: body.maxHafta,
+    activeWeek: body.aktifHafta,
     matches: (body.maclar || []).map((m) => normaliseMatch(m, now)),
   };
 }
 
 export async function getStandings({ lig = 'super-lig' } = {}) {
-  let body;
-  if (!config.data.live) {
-    body = mockStandingsResponse();
-  } else {
-    const u = new URL(config.data.base + '/puanlig.php');
-    u.searchParams.set('lig', lig);
-    body = await getJson(u);
-  }
-  const rows = body.veri?.genel || [];
+  const body = config.data.usePhp
+    ? await getJson(phpUrl('puanlig.php', { lig }))
+    : await scrape.getStandings(lig);
+  const rows = config.data.usePhp ? (body.veri?.genel || []) : (body.genel || []);
   return {
     league: body.ligAdi,
     rows: rows.map((r) => ({

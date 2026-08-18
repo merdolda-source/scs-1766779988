@@ -69,9 +69,17 @@ export async function planDay(now = new Date()) {
 
   // Next match on a quiet day, once it is close enough to be interesting.
   if (!isMatchDay) {
-    const next = ours
-      .filter((m) => !m.finished && m.kickoff && new Date(m.kickoff) > now)
-      .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
+    let upcoming = ours.filter((m) => !m.finished && m.kickoff && new Date(m.kickoff) > now);
+    // Once the current week is played out the next fixture lives in the following
+    // week, so look ahead rather than silently dropping the preview post.
+    if (!upcoming.length && fixtures.week < (fixtures.maxWeek || fixtures.week)) {
+      try {
+        const nextWeek = await getFixtures({ lig: config.data.lig, hafta: fixtures.week + 1, now });
+        upcoming = ourMatches(nextWeek)
+          .filter((m) => !m.finished && m.kickoff && new Date(m.kickoff) > now);
+      } catch { /* keep going without a preview */ }
+    }
+    const next = upcoming.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
     if (next) {
       items.push({ key: `onces-${matchKey(next)}-${today}`, scene: 'upcoming', priority: 2,
         at: atLocalSlot(now, config.cadence.slots[0]), match: next });
