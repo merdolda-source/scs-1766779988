@@ -10,7 +10,10 @@
     linear-gradient(180deg,#080d1a,#06090f)}
   #stage{position:absolute;inset:0;padding:130px 64px 260px;display:flex;flex-direction:column;justify-content:center}
   .kicker{font-size:32px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#8fa2c9;text-align:center}
-  h1{font-size:76px;font-weight:900;letter-spacing:-.02em;text-align:center;margin:14px 0 54px}
+  h1{font-size:72px;font-weight:900;letter-spacing:-.02em;text-align:center;margin:12px 0 10px}
+  /* Tabloya bakmadan once hikayeyi okusunlar. */
+  #hook{text-align:center;font-size:38px;font-weight:800;margin:0 0 40px;line-height:1.25}
+  #hook b{font-size:46px}
   .head{display:grid;grid-template-columns:74px 1fr 76px 76px 96px;gap:10px;
     font-size:25px;font-weight:700;color:#6f80a6;letter-spacing:.12em;padding:0 22px 16px;text-transform:uppercase}
   .r{display:grid;grid-template-columns:74px 1fr 76px 76px 96px;gap:10px;align-items:center;
@@ -36,6 +39,7 @@
   <div id="head">
     <div class="kicker" id="kicker">Süper Lig</div>
     <h1>PUAN DURUMU</h1>
+    <div id="hook"></div>
   </div>
   <div class="head"><div>#</div><div>Takım</div><div class="c">O</div><div class="c">AV</div><div class="c">P</div></div>
   <div id="rows"></div>
@@ -49,14 +53,27 @@
   // Ilk kare dolu baslar; bos acilis Reels'te aninda kaydirilir.
   // Bos ilk kare kaydirilir: satirlar t=0'da yerinde, hareket yakinlasmadan geliyor.
   const T={head:[-1,0], row0:-1.6, step:0.11, dur:0.28};
-  T.foot=[T.row0+10*T.step+0.8, T.row0+10*T.step+1.4];
-  T.end=T.foot[1]+2.6;
+  // 10 satirlik bir tabloyu taramak zaman ister; cok kisa bir reel okunmadan biter.
+  T.foot=[3.2, 3.9];
+  T.end=8.4;
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
   const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
   const outCubic=(x)=>1-Math.pow(1-x,3);
 
   $('kicker').textContent = D.competition || 'Süper Lig';
   $('foot').textContent = D.handle || '';
+
+  const us = table.find((r) => r.isUs);
+  if (us) {
+    const c = us.colors || ['#F5B324', '#B31226'];
+    $('hook').innerHTML =
+      `<span style="color:${c[0]}">${us.team}</span> `
+      + `<b>${us.rank}. sırada</b><br>`
+      + `<span style="color:#8fa2c9;font-size:32px">`
+      + `${us.oynanan ?? us.played} maç · ${us.points} puan · ${us.gd > 0 ? '+' : ''}${us.gd} averaj</span>`;
+  } else {
+    $('hook').style.display = 'none';
+  }
 
   const rows=table.map(r=>{
     const el=document.createElement('div');

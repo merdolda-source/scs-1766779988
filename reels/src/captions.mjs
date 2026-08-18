@@ -58,10 +58,22 @@ export function captionFor(item) {
 
   if (item.scene === 'standings') {
     const row = (item.standings?.rows || []).find((r) => r.isUs);
-    const pos = row ? `${row.rank}. sırada, ${row.points} puan` : 'güncel tablo';
-    return `Süper Lig puan durumu — ${us} ${pos}.`
-      + `\n\nSizce sezon sonu nerede bitiriyoruz?`
-      + `\n\n${tagsFor({ topic: ['#puandurumu', '#lig'] })}`;
+    if (!row) {
+      return `Süper Lig güncel puan durumu 📊`
+        + `\n\n${tagsFor({ topic: ['#puandurumu', '#lig'] })}`;
+    }
+    // A flat statement of the table gets scrolled past; the position relative to
+    // expectation is what people argue about, and arguing is what leaves comments.
+    const lead = row.rank <= 3
+      ? `${us} ${row.rank}. sırada. 🔥`
+      : `${us} tabloda ${row.rank}. sırada, ${row.points} puan.`;
+    const prompt = row.rank <= 3
+      ? 'Bu tempo sezon sonuna kadar sürer mi?'
+      : 'Sizce erken mi konuşuyoruz, yoksa bir sıkıntı mı var?';
+    return `${lead}`
+      + `\n${row.played} maç · ${row.won}G ${row.drawn}B ${row.lost}M · ${row.gf}-${row.ga}`
+      + `\n\n${prompt} 👇`
+      + `\n\n${tagsFor({ topic: ['#puandurumu', '#lig', '#süperlig2026'] })}`;
   }
 
   return tagsFor();
