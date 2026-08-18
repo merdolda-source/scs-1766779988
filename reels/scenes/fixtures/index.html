@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Haftanın Maçları</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#070b16;
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+  #bg{position:absolute;inset:0;background:
+    radial-gradient(120% 55% at 18% 6%, #1b2444 0%, transparent 58%),
+    radial-gradient(110% 50% at 88% 94%, #201a34 0%, transparent 60%),
+    linear-gradient(180deg,#080d1a,#06090f)}
+  #stage{position:absolute;inset:0;padding:130px 58px 260px;display:flex;flex-direction:column;justify-content:center}
+  .kicker{font-size:32px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#8fa2c9;text-align:center}
+  h1{font-size:72px;font-weight:900;letter-spacing:-.02em;text-align:center;margin:14px 0 48px}
+  .m{display:grid;grid-template-columns:1fr 190px 1fr;align-items:center;gap:14px;
+    padding:20px 20px;border-radius:20px;opacity:0}
+  .m+.m{margin-top:12px}
+  .m.us{background:linear-gradient(90deg,#ffffff14,#ffffff06);box-shadow:inset 0 0 0 2px #ffffff20}
+  .t{display:flex;align-items:center;gap:16px;min-width:0}
+  .t.a{flex-direction:row-reverse;text-align:right}
+  .sq{width:56px;height:56px;border-radius:16px;flex:none;display:flex;align-items:center;
+    justify-content:center;font-size:22px;font-weight:900}
+  .nm{font-size:34px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mid{text-align:center}
+  .sc{font-size:48px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .tm{font-size:38px;font-weight:800;color:#c3cfe8;font-variant-numeric:tabular-nums}
+  .st{display:inline-block;margin-top:8px;font-size:21px;font-weight:800;letter-spacing:.1em;
+    padding:4px 12px;border-radius:99px;text-transform:uppercase}
+  .st.live{background:#ff2e4d;color:#fff}
+  .st.done{background:#ffffff1a;color:#9fb0d0}
+  .st.soon{background:transparent;color:#68789e}
+  #foot{position:absolute;left:0;right:0;bottom:180px;text-align:center;
+    font-size:29px;font-weight:700;color:#61729a;letter-spacing:.08em;opacity:0}
+</style></head>
+<body>
+<div id="bg"></div>
+<div id="stage">
+  <div id="head"><div class="kicker" id="kicker"></div><h1 id="title"></h1></div>
+  <div id="list"></div>
+</div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const matches=(D.matches||[]).slice(0,8);
+  const T={head:[0.15,1.0], row0:1.15, step:0.40, dur:0.6};
+  T.foot=[T.row0+matches.length*T.step+0.9, T.row0+matches.length*T.step+1.6];
+  T.end=T.foot[1]+2.2;
+
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+
+  $('kicker').textContent=D.competition||'';
+  $('title').textContent=D.title||'HAFTANIN MAÇLARI';
+  $('foot').textContent=D.handle||'';
+
+  const els=matches.map(m=>{
+    const el=document.createElement('div');
+    const isUs=m.home.isUs||m.away.isUs;
+    el.className='m'+(isUs?' us':'');
+    const badge=(t)=>`<div class="sq" style="background:linear-gradient(150deg,${t.primary},${t.secondary})">${t.short}</div>`;
+    // Score when there is one, kickoff time when there is not.
+    const mid = (m.home.score!==null&&m.away.score!==null)
+      ? `<div class="sc">${m.home.score} - ${m.away.score}</div>`
+      : `<div class="tm">${m.time||'—'}</div>`;
+    const stCls = m.live?'live':(m.finished?'done':'soon');
+    const stTxt = m.live?(m.statusText||'CANLI'):(m.finished?'MS':(m.dateText||''));
+    el.innerHTML=`
+      <div class="t">${badge(m.home)}<div class="nm">${m.home.name}</div></div>
+      <div class="mid">${mid}<div class="st ${stCls}">${stTxt}</div></div>
+      <div class="t a">${badge(m.away)}<div class="nm">${m.away.name}</div></div>`;
+    $('list').appendChild(el);
+    return el;
+  });
+
+  function seek(t){
+    const h=p(t,T.head[0],T.head[1]);
+    $('head').style.opacity=h;
+    $('head').style.transform=`translateY(${(1-outCubic(h))*-24}px)`;
+    els.forEach((el,i)=>{
+      const a=T.row0+i*T.step, k=p(t,a,a+T.dur), e=outCubic(k);
+      el.style.opacity=clamp(k*1.8,0,1);
+      el.style.transform=`translateY(${(1-e)*26}px)`;
+    });
+    $('foot').style.opacity=p(t,T.foot[0],T.foot[1]);
+  }
+  seek(0);
+  window.__scene={duration:T.end,seek,meta:{matches:matches.length}};
+})();
+</script></body></html>

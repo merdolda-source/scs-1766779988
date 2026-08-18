@@ -1,61 +1,48 @@
-// Captions are written from the same data the video is, so they never contradict
-// the graphic. Hashtags stay short and generic - tag stuffing reads as spam.
+// Captions come from the same data the video does, so text can never contradict
+// the graphic. Hashtags stay few - tag stuffing reads as spam.
 import { config } from './config.mjs';
 
 const BASE_TAGS = ['#süperlig', '#futbol'];
-
-function teamTag(name) {
-  return '#' + name.toLocaleLowerCase('tr').replace(/[^a-zçğıöşü0-9]/g, '');
-}
-
-function tr(dt) {
-  return new Intl.DateTimeFormat('tr-TR', {
-    day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-    timeZone: config.timezone,
-  }).format(dt);
-}
+const tag = (name) => '#' + name.toLocaleLowerCase('tr').replace(/[^a-zçğıöşü0-9]/g, '');
 
 export function captionFor(item) {
   const us = config.team.name;
-  const tags = [...BASE_TAGS, teamTag(us)];
+  const tags = [...BASE_TAGS, tag(us)];
 
   if (item.scene === 'match-result') {
-    const f = item.fixture;
-    const usHome = f.home.name === us;
-    const ourScore = usHome ? f.home.score : f.away.score;
-    const theirScore = usHome ? f.away.score : f.home.score;
-    const rival = usHome ? f.away.name : f.home.name;
-    const verdict = ourScore > theirScore ? 'Kazandık' : ourScore < theirScore ? 'Kaybettik' : 'Berabere';
-    const scorers = (f.goals || []).filter((g) => (g.team === 'home') === usHome)
-      .map((g) => `${g.player} ${g.minute}'`).join(' · ');
-    return [
-      `${verdict}. ${f.home.name} ${f.home.score}-${f.away.score} ${f.away.name}`,
-      scorers ? `\nGoller: ${scorers}` : '',
-      `\n${f.league.name} · ${rival} karşısında maçın rakamları 👆`,
-      `\n\n${tags.join(' ')} ${teamTag(rival)}`,
-    ].join('');
+    const m = item.match;
+    const usHome = m.home.name === us;
+    const ourScore = usHome ? m.home.score : m.away.score;
+    const theirScore = usHome ? m.away.score : m.home.score;
+    const rival = usHome ? m.away.name : m.home.name;
+    const verdict = ourScore > theirScore ? 'Kazandık 💛❤️'
+      : ourScore < theirScore ? 'Kaybettik.' : 'Berabere kaldık.';
+    return `${verdict}\n${m.home.name} ${m.home.score}-${m.away.score} ${m.away.name}`
+      + `\n\nMaçı nasıl değerlendiriyorsunuz?`
+      + `\n\n${tags.join(' ')} ${tag(rival)}`;
   }
 
   if (item.scene === 'upcoming') {
-    const f = item.fixture;
-    const usHome = f.home.name === us;
-    const rival = usHome ? f.away.name : f.home.name;
-    return [
-      `${f.home.name} - ${f.away.name}`,
-      `\n${tr(new Date(f.kickoff))}${f.venue ? ' · ' + f.venue : ''}`,
-      `\n\nSkor tahmininiz? Yorumlara yazın 👇`,
-      `\n\n${tags.join(' ')} ${teamTag(rival)}`,
-    ].join('');
+    const m = item.match;
+    const rival = m.home.name === us ? m.away.name : m.home.name;
+    return `${m.home.name} - ${m.away.name}`
+      + `\n${m.dateText}${m.time ? ' · ' + m.time : ''}`
+      + `\n\nSkor tahmininiz? Yorumlara yazın 👇`
+      + `\n\n${tags.join(' ')} ${tag(rival)}`;
+  }
+
+  if (item.scene === 'fixtures') {
+    return `${item.fixtures.league} ${item.fixtures.week}. hafta programı 📅`
+      + `\n\nBu hafta en çok hangi maçı merak ediyorsunuz?`
+      + `\n\n${tags.join(' ')} #fikstür`;
   }
 
   if (item.scene === 'standings') {
-    const row = (item.standings || []).find((r) => r.isUs);
+    const row = (item.standings?.rows || []).find((r) => r.isUs);
     const pos = row ? `${row.rank}. sırada, ${row.points} puan` : 'güncel tablo';
-    return [
-      `Süper Lig puan durumu — ${us} ${pos}.`,
-      `\n\nSizce sezon sonu nerede bitiriyoruz?`,
-      `\n\n${tags.join(' ')} #puandurumu`,
-    ].join('');
+    return `Süper Lig puan durumu — ${us} ${pos}.`
+      + `\n\nSizce sezon sonu nerede bitiriyoruz?`
+      + `\n\n${tags.join(' ')} #puandurumu`;
   }
 
   return tags.join(' ');

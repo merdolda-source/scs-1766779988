@@ -1,16 +1,16 @@
-// Decides what goes out today.
+// Decides what goes out today, from what our own endpoints can actually supply.
 //
-// Brief: two posts on an ordinary day, three or four when there is a match, and
-// some days nothing at all. Match content is the priority and evergreen content
-// only fills whatever slots are left over.
+// Cadence per the brief: two posts on an ordinary day, up to four when our team
+// plays, and some days nothing at all. Our team's own match always outranks
+// league-wide filler.
 //
-// The plan is a pure function of the date and the fixture list - the same day
-// always plans the same way - so re-running the job is safe and produces no
-// duplicates when combined with the ledger.
+// The plan is a pure function of the date and the fixture list, so re-running
+// plans identically; with the ledger keyed per item, a repeat run cannot
+// double-post.
 import { config } from './config.mjs';
-import { getTeamFixtures, getFixtureDetail, getStandings } from './football-api.mjs';
+import { getFixtures, getStandings, ourMatches } from './sporx-api.mjs';
 
-const HOUR = 3600000, DAY = 86400000;
+const HOUR = 3600000;
 
 function seedFor(date) {
   const s = date.toISOString().slice(0, 10);
@@ -19,96 +19,77 @@ function seedFor(date) {
   return (h >>> 0) / 4294967296;
 }
 
-function sameDay(a, b) {
-  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
-}
+const dayKey = (d) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: config.timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(d);
 
-function atLocalSlot(date, hhmm) {
+function atLocalSlot(now, hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date(date);
+  const d = new Date(now);
   d.setHours(h, m, 0, 0);
   return d;
 }
 
-export async function planDay(now = new Date()) {
-  const fixtures = await getTeamFixtures({
-    from: new Date(now.getTime() - 2 * DAY),
-    to: new Date(now.getTime() + 8 * DAY),
-    now,
-  });
+// A stable id per match, so the ledger recognises it across runs.
+function matchKey(m) {
+  if (m.url) {
+    const id = m.url.match(/(\d+)$/);
+    if (id) return id[1];
+  }
+  return `${m.home.name}-${m.away.name}-${m.dateText}`.replace(/\s+/g, '');
+}
 
-  const todays = fixtures.filter((f) => sameDay(new Date(f.kickoff), now));
-  const isMatchDay = todays.length > 0;
+export async function planDay(now = new Date()) {
+  const fixtures = await getFixtures({ lig: config.data.lig, now });
+  const today = dayKey(now);
+
+  const ours = ourMatches(fixtures);
+  const oursToday = ours.filter((m) => m.kickoff && dayKey(new Date(m.kickoff)) === today);
+  const isMatchDay = oursToday.length > 0;
   const maxPosts = isMatchDay ? config.cadence.matchDayMax : config.cadence.normalPerDay;
 
-  // Quiet days only happen when there is nothing going on.
   if (!isMatchDay && seedFor(now) < config.cadence.quietDayChance) {
-    return { date: now.toISOString().slice(0, 10), matchDay: false, quiet: true, items: [] };
+    return { date: today, matchDay: false, quiet: true, items: [] };
   }
 
   const items = [];
 
-  // 1. Finished matches -> the result reel, shortly after full time.
-  for (const f of todays.filter((x) => x.finished)) {
-    const end = new Date(new Date(f.kickoff).getTime() + 2 * HOUR);
-    items.push({
-      key: `result-${f.id}`,
-      scene: 'match-result',
-      priority: 1,
-      at: new Date(Math.max(end.getTime(), now.getTime())),
-      fixtureId: f.id,
-    });
+  for (const m of oursToday) {
+    if (m.finished) {
+      items.push({ key: `sonuc-${matchKey(m)}`, scene: 'match-result', priority: 1,
+        at: new Date(now), match: m });
+    } else if (!m.live) {
+      const kickoff = new Date(m.kickoff);
+      items.push({ key: `onces-${matchKey(m)}`, scene: 'upcoming', priority: 1,
+        at: new Date(kickoff.getTime() - 4 * HOUR), match: m });
+    }
+    // Live matches are deliberately skipped: a mid-match card is stale the
+    // moment it publishes. Final score covers it.
   }
 
-  // 2. Matches still to come today -> a build-up reel a few hours before kickoff.
-  for (const f of todays.filter((x) => !x.finished && !x.live)) {
-    items.push({
-      key: `preview-${f.id}`,
-      scene: 'upcoming',
-      priority: 1,
-      at: new Date(new Date(f.kickoff).getTime() - 4 * HOUR),
-      fixtureId: f.id,
-    });
-  }
-
-  // 3. Next match on a non-match day, once it is close enough to matter.
+  // Next match on a quiet day, once it is close enough to be interesting.
   if (!isMatchDay) {
-    const next = fixtures
-      .filter((f) => !f.finished && new Date(f.kickoff) > now)
+    const next = ours
+      .filter((m) => !m.finished && m.kickoff && new Date(m.kickoff) > now)
       .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
-    if (next && new Date(next.kickoff) - now < 3 * DAY) {
-      items.push({
-        key: `countdown-${next.id}-${now.toISOString().slice(0, 10)}`,
-        scene: 'upcoming',
-        priority: 2,
-        at: atLocalSlot(now, config.cadence.slots[0]),
-        fixtureId: next.id,
-      });
+    if (next) {
+      items.push({ key: `onces-${matchKey(next)}-${today}`, scene: 'upcoming', priority: 2,
+        at: atLocalSlot(now, config.cadence.slots[0]), match: next });
     }
   }
 
-  // 4. Evergreen filler.
-  items.push({
-    key: `standings-${now.toISOString().slice(0, 10)}`,
-    scene: 'standings',
-    priority: 3,
-    at: atLocalSlot(now, config.cadence.slots[config.cadence.slots.length - 1]),
-  });
+  // League-wide filler.
+  items.push({ key: `fikstur-${today}`, scene: 'fixtures', priority: 3,
+    at: atLocalSlot(now, config.cadence.slots[0]), fixtures });
+  items.push({ key: `puan-${today}`, scene: 'standings', priority: 4,
+    at: atLocalSlot(now, config.cadence.slots[config.cadence.slots.length - 1]) });
 
-  // Highest priority first, then chronological; trim to the day's allowance.
   items.sort((a, b) => a.priority - b.priority || a.at - b.at);
   const chosen = items.slice(0, maxPosts).sort((a, b) => a.at - b.at);
 
-  // Attach the data each scene needs.
   for (const item of chosen) {
-    if (item.fixtureId) item.fixture = await getFixtureDetail(item.fixtureId);
-    if (item.scene === 'standings') item.standings = await getStandings();
+    if (item.scene === 'standings') item.standings = await getStandings({ lig: config.data.lig });
   }
 
-  return {
-    date: now.toISOString().slice(0, 10),
-    matchDay: isMatchDay,
-    quiet: false,
-    items: chosen.filter((i) => !i.fixtureId || i.fixture),
-  };
+  return { date: today, matchDay: isMatchDay, quiet: false, week: fixtures.week, items: chosen };
 }

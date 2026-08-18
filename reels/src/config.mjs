@@ -33,10 +33,13 @@ export const config = {
   },
   league: { id: Number(env.LEAGUE_ID || 203), season: Number(env.SEASON || 2026) },
 
-  football: {
-    key: env.API_FOOTBALL_KEY || '',
-    host: 'https://v3.football.api-sports.io',
-    get live() { return Boolean(env.API_FOOTBALL_KEY); },
+  // Our own PHP endpoints (fikstur.php / puanlig.php). Without a base URL the
+  // adapter serves mock responses in the identical shape, so the pipeline runs
+  // end to end offline.
+  data: {
+    base: (env.DATA_BASE_URL || '').replace(/\/$/, ''),
+    lig: env.DATA_LIG || 'super-lig',
+    get live() { return Boolean(env.DATA_BASE_URL); },
   },
 
   instagram: {
@@ -71,7 +74,7 @@ export const config = {
 
 export function describeMode() {
   return {
-    football: config.football.live ? 'live' : 'mock',
+    data: config.data.live ? 'live' : 'mock',
     instagram: config.instagram.live ? 'live' : 'dry-run',
     storage: config.storage.live ? 'live' : 'local',
   };

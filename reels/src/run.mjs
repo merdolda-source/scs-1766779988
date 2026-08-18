@@ -10,7 +10,6 @@ import path from 'node:path';
 import { config, describeMode } from './config.mjs';
 import { planDay } from './planner.mjs';
 import { captionFor } from './captions.mjs';
-import { colorsOf } from './football-api.mjs';
 import { openBrowser, renderScene } from '../engine/render-lib.mjs';
 import { uploadVideo } from './storage.mjs';
 import { publishReel } from './publisher.mjs';
@@ -20,40 +19,47 @@ const flag = (n) => process.argv.includes('--' + n);
 const DRY = flag('dry-run');
 const ALL = flag('all');
 
-function trDateTime(iso) {
-  return new Intl.DateTimeFormat('tr-TR', {
-    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-    timeZone: config.timezone,
-  }).format(new Date(iso));
-}
-
-// Each scene gets exactly the shape it renders from - scenes never see raw API data.
-function sceneDataFor(item) {
+// Each scene gets exactly the shape it renders from - scenes never see raw
+// source data.
+function sceneDataFor(item, plan) {
   const handle = config.handle;
+  const us = config.team.name;
+  const markUs = (m) => ({
+    ...m,
+    home: { ...m.home, isUs: m.home.name === us },
+    away: { ...m.away, isUs: m.away.name === us },
+  });
+
   if (item.scene === 'match-result') {
-    const f = item.fixture;
+    const m = item.match;
     return {
-      competition: `${f.league.name}${f.league.round ? ' · ' + f.league.round.replace('Regular Season - ', '') + '. Hafta' : ''}`,
-      venue: f.venue,
-      home: f.home, away: f.away,
-      stats: f.stats || [], goals: f.goals || [], handle,
+      competition: `Süper Lig${plan.week ? ' · ' + plan.week + '. Hafta' : ''}`,
+      venue: '',
+      home: m.home, away: m.away,
+      stats: [],   // source carries no per-match statistics
+      goals: [],   // nor goalscorers
+      handle,
     };
   }
   if (item.scene === 'upcoming') {
-    const f = item.fixture;
+    const m = item.match;
     return {
-      competition: f.league.name,
-      home: f.home, away: f.away,
-      kickoffText: trDateTime(f.kickoff),
-      venue: f.venue, cta: 'Skor tahmininiz?', handle,
+      competition: `Süper Lig${plan.week ? ' · ' + plan.week + '. Hafta' : ''}`,
+      home: m.home, away: m.away,
+      kickoffText: [m.dateText, m.time].filter(Boolean).join(' · '),
+      venue: '', cta: 'Skor tahmininiz?', handle,
+    };
+  }
+  if (item.scene === 'fixtures') {
+    return {
+      competition: item.fixtures.league,
+      title: `${item.fixtures.week}. HAFTA`,
+      matches: item.fixtures.matches.map(markUs),
+      handle,
     };
   }
   if (item.scene === 'standings') {
-    return {
-      competition: 'Süper Lig',
-      standings: item.standings.map((r) => ({ ...r, colors: colorsOf(r.team) })),
-      handle,
-    };
+    return { competition: 'Süper Lig', standings: item.standings.rows, handle };
   }
   throw new Error('unknown scene ' + item.scene);
 }
@@ -81,7 +87,7 @@ try {
     if (hasPosted(item.key)) { results.push({ key: item.key, status: 'zaten paylaşıldı' }); continue; }
 
     const out = path.join(config.outDir, `${plan.date}-${item.key}.mp4`);
-    const data = sceneDataFor(item);
+    const data = sceneDataFor(item, plan);
     const caption = captionFor(item);
 
     const r = await renderScene({

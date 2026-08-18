@@ -103,15 +103,19 @@
   const $ = (id) => document.getElementById(id);
 
   // ---- timeline (seconds) --------------------------------------------------
-  const T = {
-    head: [0.15, 0.9],
-    badges: [0.5, 1.5],
-    score: [1.7, 3.0],
-    stats0: 4.2, statStep: 1.15, statDur: 0.85,
-    goals0: 11.4, goalStep: 0.55, goalDur: 0.5,
-    handle: [14.4, 15.2],
-    end: 16.6,
-  };
+  // The data source may carry no per-match statistics and no goalscorers. Rather
+  // than render empty blocks, those sections are dropped and the timeline
+  // collapses around what is actually present.
+  const nStats = (D.stats || []).length;
+  const nGoals = (D.goals || []).length;
+  const T = { head: [0.15, 0.9], badges: [0.5, 1.5], score: [1.7, 3.0],
+              statStep: 1.15, statDur: 0.85, goalStep: 0.55, goalDur: 0.5 };
+  T.stats0 = 4.2;
+  T.goals0 = nStats ? T.stats0 + nStats * T.statStep + 0.5 : T.stats0;
+  const contentEnd = nGoals ? T.goals0 + nGoals * T.goalStep + T.goalDur
+                            : (nStats ? T.goals0 : T.score[1]);
+  T.handle = [contentEnd + 0.5, contentEnd + 1.2];
+  T.end = T.handle[1] + 1.6;
 
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const p = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
