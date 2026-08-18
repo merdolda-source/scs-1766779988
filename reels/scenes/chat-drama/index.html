@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Sohbet</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#0b141a;
+    font-family:'Inter','Inter Display',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  #wrap{position:absolute;inset:0;display:flex;flex-direction:column}
+
+  /* --- WhatsApp benzeri baslik --- */
+  #hdr{background:#1f2c34;padding:34px 30px 26px;display:flex;align-items:center;gap:20px;
+    box-shadow:0 6px 20px #0006;z-index:5}
+  #hdr .back{font-size:44px;color:#e9edef;font-weight:300}
+  #hdr .av{width:74px;height:74px;border-radius:50%;background:linear-gradient(150deg,#F5B324,#B31226);
+    display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#1a1300}
+  #hdr .meta{flex:1;min-width:0}
+  #hdr .gname{font-size:33px;font-weight:700;color:#e9edef}
+  #hdr .members{font-size:23px;color:#8696a0;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #hdr .icons{display:flex;gap:26px;font-size:34px;color:#8696a0}
+
+  /* --- sohbet zemini --- */
+  #chat{position:relative;flex:1;background:
+      radial-gradient(80% 50% at 20% 10%,#182229 0%,#0b141a 55%);
+    overflow:hidden;padding:26px 26px 40px}
+  #track{position:absolute;left:26px;right:26px;top:26px;display:flex;flex-direction:column;gap:16px}
+
+  .row{display:flex;opacity:0}
+  .row.out{justify-content:flex-end}
+  .bub{max-width:78%;border-radius:20px;padding:16px 20px;position:relative;
+    box-shadow:0 3px 10px #0004}
+  .row.in .bub{background:#1f2c34;border-top-left-radius:6px}
+  .row.out .bub{background:#025c4c;border-top-right-radius:6px}
+  .name{font-size:23px;font-weight:800;margin-bottom:6px}
+  .txt{font-size:31px;line-height:1.32;color:#e9edef;font-weight:500;white-space:pre-wrap}
+  .time{font-size:20px;color:#8696a0;margin-top:8px;text-align:right}
+
+  .sys{align-self:center;background:#182229;color:#8696a0;font-size:23px;font-weight:700;
+    padding:10px 22px;border-radius:14px;opacity:0;align-self:center}
+
+  .typing{opacity:0}
+  .typing .bub{background:#1f2c34;border-top-left-radius:6px;padding:20px 24px}
+  .dots{display:flex;gap:7px}
+  .dots i{width:12px;height:12px;border-radius:50%;background:#8696a0;display:inline-block;
+    animation:bd 1s infinite ease-in-out}
+  .dots i:nth-child(2){animation-delay:.15s}
+  .dots i:nth-child(3){animation-delay:.30s}
+  @keyframes bd{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}
+
+  #foot{position:absolute;left:0;right:0;bottom:26px;text-align:center;
+    font-size:26px;font-weight:700;color:#5c7080;letter-spacing:.06em;opacity:0;z-index:5}
+</style></head>
+<body>
+<div id="wrap">
+  <div id="hdr">
+    <div class="back">‹</div>
+    <div class="av" id="av"></div>
+    <div class="meta">
+      <div class="gname" id="gname"></div>
+      <div class="members" id="members"></div>
+    </div>
+    <div class="icons">⋮</div>
+  </div>
+  <div id="chat"><div id="track"></div></div>
+</div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+  const outBack=(x)=>1+2.7*Math.pow(x-1,3)+1.7*Math.pow(x-1,2);
+
+  $('gname').textContent = D.groupName;
+  $('members').textContent = D.members;
+  $('av').textContent = D.avatarText || 'GS';
+  $('foot').textContent = D.handle || '';
+
+  const track = $('track');
+  const items = []; // {el, kind:'msg'|'typing'|'sys', at, dur}
+
+  // Her mesajdan once kisa bir 'yaziyor...' balonu -> gercek sohbet temposu.
+  const TYPE_DUR = 0.62;
+  const GAP = 0.30;
+  let t = 0.35;
+
+  D.messages.forEach((m) => {
+    if (m.typingBefore) {
+      const tEl = document.createElement('div');
+      tEl.className = 'row ' + (m.dir === 'out' ? 'out' : 'in') + ' typing';
+      tEl.innerHTML = `<div class="bub"><div class="dots"><i></i><i></i><i></i></div></div>`;
+      track.appendChild(tEl);
+      items.push({ el: tEl, at: t, dur: TYPE_DUR, remove: true });
+      t += TYPE_DUR + 0.12;
+    }
+    if (m.sys) {
+      const el = document.createElement('div');
+      el.className = 'sys';
+      el.textContent = m.text;
+      track.appendChild(el);
+      items.push({ el, at: t, dur: 0.4 });
+      t += 0.75;
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'row ' + (m.dir === 'out' ? 'out' : 'in');
+    el.innerHTML = `<div class="bub">
+        ${m.dir !== 'out' ? `<div class="name" style="color:${m.color || '#F5B324'}">${m.name}</div>` : ''}
+        <div class="txt">${m.text}</div>
+        <div class="time">${m.time}${m.dir === 'out' ? ' ✓✓' : ''}</div>
+      </div>`;
+    track.appendChild(el);
+    const dur = 0.4;
+    items.push({ el, at: t, dur, height: true });
+    t += dur + GAP + Math.min(1.1, m.text.length * 0.018);
+  });
+
+  const lastAt = t + 0.4;
+  $('foot').style.display = 'block';
+  const T = { foot: [lastAt + 0.3, lastAt + 0.9], end: lastAt + 2.6 };
+
+  // Track toplam yuksekligi kadar yukari kaydiriliyor: en son mesaj gorunur alanda kalsin.
+  function layoutScroll(t) {
+    const trackH = track.scrollHeight;
+    const viewH = $('chat').clientHeight;
+    const visibleUntil = items.filter(it => it.at <= t && !it.remove);
+    if (!visibleUntil.length) return;
+    const lastVisible = visibleUntil[visibleUntil.length - 1].el;
+    const bottom = lastVisible.offsetTop + lastVisible.offsetHeight;
+    const shift = Math.max(0, Math.min(trackH - viewH + 60, bottom - viewH + 140));
+    track.style.transform = `translateY(${-shift}px)`;
+  }
+
+  function seek(tt) {
+    for (const it of items) {
+      const k = p(tt, it.at, it.at + it.dur);
+      const e = it.remove ? k : outBack(k);
+      it.el.style.opacity = clamp(k * 2, 0, 1);
+      if (!it.remove) {
+        it.el.style.transform = `translateY(${(1 - e) * 22}px) scale(${0.94 + e * 0.06})`;
+      }
+      if (it.remove && k >= 1) it.el.style.display = 'none';
+      else if (it.remove) it.el.style.display = 'flex';
+    }
+    layoutScroll(tt);
+    $('foot').style.opacity = p(tt, T.foot[0], T.foot[1]);
+  }
+
+  seek(0);
+  window.__scene = { duration: T.end, seek, meta: { messages: D.messages.length } };
+})();
+</script></body></html>
