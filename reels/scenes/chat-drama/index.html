@@ -79,9 +79,11 @@
   const items = []; // {el, kind:'msg'|'typing'|'sys', at, dur}
 
   // Her mesajdan once kisa bir 'yaziyor...' balonu -> gercek sohbet temposu.
-  const TYPE_DUR = 0.62;
-  const GAP = 0.30;
-  let t = 0.35;
+  // Okumaya zaman biraksin diye her baloncuk daha uzun ekranda kalir; oncekinden
+  // cok daha hizli akiyordu ve metin daha belirmeden bir sonraki basliyordu.
+  const TYPE_DUR = 0.75;
+  const GAP = 0.55;
+  let t = 0.45;
 
   D.messages.forEach((m) => {
     if (m.typingBefore) {
@@ -111,7 +113,7 @@
     track.appendChild(el);
     const dur = 0.4;
     items.push({ el, at: t, dur, height: true });
-    t += dur + GAP + Math.min(1.1, m.text.length * 0.018);
+    t += dur + GAP + Math.min(2.1, m.text.length * 0.030);
   });
 
   const lastAt = t + 0.4;
