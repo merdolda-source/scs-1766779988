@@ -6,6 +6,21 @@ import { pickRandomPicture, PICTURES } from './images.js';
 const $ = (id) => document.getElementById(id);
 const ALBUM_KEY = 'domino.album.v1';
 
+// ---- reel mode -------------------------------------------------------------
+// ?reel=1 turns the page into a frame-stepped video source: no HUD, no rAF loop,
+// gaps bridged automatically, and a fixed seed so the same URL always renders the
+// same clip. tools/render-reel.mjs drives it and pipes frames into ffmpeg.
+const params = new URLSearchParams(location.search);
+const REEL = params.has('reel');
+const REEL_OPTS = {
+  level: Number(params.get('level') ?? 0),
+  seed: Number(params.get('seed') ?? 1),
+  speed: Number(params.get('speed') ?? 1),
+  picture: params.get('picture') || null,
+  hook: Number(params.get('hook') ?? 0.7),   // seconds before the first tile drops
+  hold: Number(params.get('hold') ?? 1.8),   // seconds to sit on the finished picture
+};
+
 const ui = {
   levelName: $('levelName'), budget: $('budget'), estimate: $('estimate'),
   progress: $('progress'), progressBar: $('progressBar'),
@@ -15,6 +30,7 @@ const ui = {
   resultNote: $('resultNote'), nextBtn: $('nextBtn'), retryBtn: $('retryBtn'),
   album: $('album'), albumBtn: $('albumBtn'), albumPanel: $('albumPanel'),
   albumClose: $('albumClose'),
+  reelLayer: $('reelLayer'), reelHook: $('reelHook'), reelTitle: $('reelTitle'),
 };
 
 const view = new View($('gl'));
@@ -37,13 +53,28 @@ function saveAlbum(a) {
   try { localStorage.setItem(ALBUM_KEY, JSON.stringify(a)); } catch { /* private mode */ }
 }
 
-function startLevel(index) {
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function startLevel(index, opts = {}) {
   game.levelIndex = index % LEVELS.length;
   const cfg = LEVELS[game.levelIndex];
-  const picture = pickRandomPicture(game.lastPicture);
+
+  let picture;
+  if (opts.picture) picture = PICTURES.find((p) => p.id === opts.picture) || PICTURES[0];
+  else if (opts.seed !== undefined) {
+    picture = PICTURES[Math.floor(mulberry32(opts.seed)() * PICTURES.length)];
+  } else picture = pickRandomPicture(game.lastPicture);
   game.lastPicture = picture.id;
 
-  game.field = buildLevel({ ...cfg, picture, seed: (Date.now() ^ (index * 7919)) >>> 0 });
+  const seed = opts.seed !== undefined ? opts.seed : (Date.now() ^ (index * 7919)) >>> 0;
+  game.field = buildLevel({ ...cfg, picture, seed });
   game.remaining = game.field.budget;
   game.phase = 'build';
   game.speed = 1;
@@ -115,12 +146,8 @@ function onPointerUp(e) {
   view.clearGhosts();
   if (p) {
     const used = addBridge(game.field, drag.x, drag.z, p.x, p.z, game.remaining);
-    if (used > 0) {
-      game.remaining -= used;
-      rebuildSim();
-    } else {
-      flash(ui.budget);
-    }
+    if (used > 0) { game.remaining -= used; rebuildSim(); }
+    else flash(ui.budget);
   }
   drag = null;
   updateHud();
@@ -175,11 +202,94 @@ function renderAlbum() {
     const got = album[p.id];
     const cell = document.createElement('div');
     cell.className = 'cell' + (got ? '' : ' locked');
-    cell.innerHTML = got
-      ? `<b>${p.name}</b><span>%${got}</span>`
-      : `<b>?</b><span>kilitli</span>`;
+    cell.innerHTML = got ? `<b>${p.name}</b><span>%${got}</span>` : `<b>?</b><span>kilitli</span>`;
     ui.album.appendChild(cell);
   }
+}
+
+// ---- bridging helper shared by the test harness and reel mode ---------------
+
+function autoBridge() {
+  const f = game.field;
+  const ends = [];
+  for (let i = 1; i < f.count; i++) {
+    if (f.sectionOf[i] !== f.sectionOf[i - 1] && f.sectionOf[i] >= 0) ends.push([i - 1, i]);
+  }
+  let used = 0, full = 0, shortcut = 0;
+  for (const [a, b] of ends) {
+    let n = addBridge(game.field, f.px[a], f.pz[a], f.px[b], f.pz[b], game.remaining);
+    if (n > 0) full++;
+    else {
+      let best = -1, bestD = Infinity;
+      for (let j = b; j < f.count; j++) {
+        const d = Math.hypot(f.px[j] - f.px[a], f.pz[j] - f.pz[a]);
+        if (d < bestD) { bestD = d; best = j; }
+      }
+      if (best !== -1) {
+        n = addBridge(game.field, f.px[a], f.pz[a], f.px[best], f.pz[best], game.remaining);
+        if (n > 0) shortcut++;
+      }
+    }
+    game.remaining -= n;
+    used += n;
+  }
+  rebuildSim();
+  return { gaps: ends.length, full, shortcut, used, remaining: game.remaining };
+}
+
+// ---- reel driver -----------------------------------------------------------
+
+function setupReel() {
+  document.body.classList.add('reel');
+  startLevel(REEL_OPTS.level, { seed: REEL_OPTS.seed, picture: REEL_OPTS.picture });
+  autoBridge();
+  view.clearMarkers();
+  view.syncAll(game.field, game.sim);
+
+  const pic = game.field.picture;
+  ui.reelLayer.classList.remove('hidden');
+  ui.reelHook.textContent = 'NE ÇIKACAK?';
+  ui.reelHook.style.opacity = '1';
+  ui.reelTitle.style.opacity = '0';
+
+  let t = 0;
+  let ignited = false;
+  let finishedAt = -1;
+
+  window.__reel = {
+    get done() { return finishedAt >= 0 && t - finishedAt >= REEL_OPTS.hold; },
+    get info() {
+      return {
+        picture: pic.name, pictureId: pic.id,
+        tiles: game.field.count,
+        revealed: Math.round(game.sim.progress * 100),
+        seconds: +t.toFixed(2),
+      };
+    },
+    step(dt) {
+      t += dt;
+
+      if (!ignited && t >= REEL_OPTS.hook) { startRun(); ignited = true; }
+      if (ignited && finishedAt < 0) {
+        const running = game.sim.step(dt, REEL_OPTS.speed);
+        view.syncMoving(game.field, game.sim);
+        if (!running) finishedAt = t;
+      }
+
+      // Hook fades out once the wave is clearly moving; the title fades in on the
+      // reveal, which is the beat the whole clip is built around.
+      const hookFade = Math.min(1, Math.max(0, (t - REEL_OPTS.hook - 0.5) / 0.5));
+      ui.reelHook.style.opacity = String(1 - hookFade);
+      if (finishedAt >= 0) {
+        const k = Math.min(1, (t - finishedAt) / 0.45);
+        ui.reelTitle.style.opacity = String(k);
+        ui.reelTitle.style.transform = `translateY(${(1 - k) * 18}px) scale(${0.94 + k * 0.06})`;
+        ui.reelTitle.textContent = pic.name.toLocaleUpperCase('tr');
+      }
+
+      view.render();
+    },
+  };
 }
 
 // ---- loop ------------------------------------------------------------------
@@ -188,14 +298,12 @@ let last = performance.now();
 function frame(now) {
   const dt = (now - last) / 1000;
   last = now;
-
   if (game.phase === 'run') {
     const stillRunning = game.sim.step(dt, game.speed);
     view.syncMoving(game.field, game.sim);
     updateHud();
     if (!stillRunning) finishRun();
   }
-
   view.render();
   requestAnimationFrame(frame);
 }
@@ -223,46 +331,19 @@ for (const btn of ui.speeds.querySelectorAll('button')) {
 }
 
 window.addEventListener('resize', () => view.resize());
-
 view.resize();
-startLevel(0);
-requestAnimationFrame(frame);
+
+if (REEL) {
+  setupReel();
+} else {
+  startLevel(0);
+  requestAnimationFrame(frame);
+}
 
 // exposed for the headless smoke test
 window.__game = game;
 window.__startLevel = (i) => startLevel(i);
-
-// Bridges every gap the straightforward way, so a test run can show a full reveal.
-window.__autoBridge = () => {
-  const f = game.field;
-  const ends = [];
-  for (let i = 1; i < f.count; i++) {
-    if (f.sectionOf[i] !== f.sectionOf[i - 1] && f.sectionOf[i] >= 0) ends.push([i - 1, i]);
-  }
-  let used = 0, full = 0, shortcut = 0;
-  for (const [a, b] of ends) {
-    // Preferred play: bridge the gap head-on and keep the whole picture.
-    let n = addBridge(game.field, f.px[a], f.pz[a], f.px[b], f.pz[b], game.remaining);
-    if (n > 0) full++;
-    else {
-      // Too expensive: hop sideways to the nearest tile further down the run.
-      // Cheap, but everything skipped over stays dark - the core trade-off.
-      let best = -1, bestD = Infinity;
-      for (let j = b; j < f.count; j++) {
-        const d = Math.hypot(f.px[j] - f.px[a], f.pz[j] - f.pz[a]);
-        if (d < bestD) { bestD = d; best = j; }
-      }
-      if (best !== -1) {
-        n = addBridge(game.field, f.px[a], f.pz[a], f.px[best], f.pz[best], game.remaining);
-        if (n > 0) shortcut++;
-      }
-    }
-    game.remaining -= n;
-    used += n;
-  }
-  rebuildSim();
-  return { gaps: ends.length, full, shortcut, used, remaining: game.remaining };
-};
+window.__autoBridge = autoBridge;
 window.__fastForward = () => {
   if (game.phase === 'build') startRun();
   let guard = 0;

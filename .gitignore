@@ -5,3 +5,5 @@ app/build/
 node_modules/
 game/bundle.js
 game/shots/
+game/out/
+dist/reels/
