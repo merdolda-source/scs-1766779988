@@ -70,8 +70,10 @@
   $('hs').textContent = D.home.score; $('as').textContent = D.away.score;
   $('foot').textContent = D.handle || '';
 
-  const T={flash:[0,0.5], kick:[0.25,0.8], min:[0.45,1.0], gol:[0.35,1.15],
-           who:[1.15,1.8], team:[1.5,2.1], score:[2.2,3.0], foot:[3.6,4.2], end:7.4};
+  // Flas ve 'GOL!' ilk karede: bir gol karti aninda okunmali.
+  const T={flash:[0,0.35], kick:[-1,0], min:[-0.2,0.3], gol:[-0.25,0.30],
+           who:[0.5,1.05], team:[0.85,1.35], score:[1.25,1.95],
+           foot:[2.7,3.3], end:7.2};
 
   function seek(t){
     // One hard flash on impact, then it clears out of the way.

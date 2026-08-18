@@ -104,16 +104,17 @@
   // Timeline is derived from what the data actually contains, so a result with
   // no form or no table position simply ends sooner instead of holding on empty
   // sections.
-  const T = { head:[0.15,0.9], badges:[0.5,1.5], score:[1.7,3.0],
-              formStep:0.26, formDur:0.6 };
-  T.form0 = 3.6;
+  // Skor ilk yarim saniyede okunur olmali; bos acilis Reels'te kaydirilir.
+  const T = { head:[-1,0], badges:[-0.30,0.30], score:[0.15,1.05],
+              formStep:0.20, formDur:0.42 };
+  T.form0 = 1.55;
   const formEnd = form.length ? T.form0 + form.length * T.formStep + T.formDur : T.score[1];
-  T.stand = [formEnd + 0.8, formEnd + 1.8];
+  T.stand = [formEnd + 0.5, formEnd + 1.3];
   T.tile0 = T.stand[1] + 0.15;
-  T.tileStep = 0.34; T.tileDur = 0.65;
+  T.tileStep = 0.26; T.tileDur = 0.5;
   const tilesEnd = st ? T.tile0 + 3 * T.tileStep + T.tileDur : T.stand[0];
-  T.handle = [tilesEnd + 1.0, tilesEnd + 1.8];
-  T.end = T.handle[1] + 2.4;
+  T.handle = [tilesEnd + 0.7, tilesEnd + 1.4];
+  T.end = T.handle[1] + 2.6;
 
   $('kicker').textContent = D.competition || '';
   $('hname').textContent = D.home.name.toLocaleUpperCase('tr');

@@ -46,7 +46,11 @@
   const D=window.__DATA, $=(id)=>document.getElementById(id);
   const rowsEl=$('rows');
   const table=(D.standings||[]).slice(0,10);
-  const T={head:[0.15,1.0], row0:1.2, step:0.42, dur:0.6, foot:[8.4,9.1], end:11.0};
+  // Ilk kare dolu baslar; bos acilis Reels'te aninda kaydirilir.
+  // Bos ilk kare kaydirilir: satirlar t=0'da yerinde, hareket yakinlasmadan geliyor.
+  const T={head:[-1,0], row0:-1.6, step:0.11, dur:0.28};
+  T.foot=[T.row0+10*T.step+0.8, T.row0+10*T.step+1.4];
+  T.end=T.foot[1]+2.6;
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
   const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
   const outCubic=(x)=>1-Math.pow(1-x,3);
@@ -68,15 +72,20 @@
     return el;
   });
 
+  const stage=document.getElementById('stage');
   function seek(t){
     const h=p(t,T.head[0],T.head[1]);
     $('head').style.opacity=h;
-    $('head').style.transform=`translateY(${(1-outCubic(h))*-24}px)`;
+    stage.style.transform=`scale(${1+0.016*Math.min(t,6)})`;
     rows.forEach((el,i)=>{
       const a=T.row0+i*T.step;
       const k=p(t,a,a+T.dur), e=outCubic(k);
       el.style.opacity=clamp(k*1.8,0,1);
       el.style.transform=`translateX(${(1-e)*-40}px)`;
+      if(table[i] && table[i].isUs){
+        const pulse=0.5+0.5*Math.sin(t*2.4);
+        el.style.boxShadow=`inset 0 0 0 2px rgba(255,255,255,${0.14+pulse*0.32})`;
+      }
     });
     $('foot').style.opacity=p(t,T.foot[0],T.foot[1]);
   }

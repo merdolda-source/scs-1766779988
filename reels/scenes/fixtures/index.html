@@ -42,9 +42,13 @@
 (function(){
   const D=window.__DATA, $=(id)=>document.getElementById(id);
   const matches=(D.matches||[]).slice(0,10);
-  const T={head:[0.15,1.0], row0:1.15, step:0.40, dur:0.6};
-  T.foot=[T.row0+matches.length*T.step+0.9, T.row0+matches.length*T.step+1.6];
-  T.end=T.foot[1]+2.2;
+  // Reels'te ilk kare bos olursa izleyici icerigi hic gormeden kaydiriyor.
+  // Baslik t=0'da tam gorunur, satirlar hemen ardindan akar.
+  // Reels'te bos bir ilk kare kaydirilir. Bu yuzden giris animasyonu yok:
+  // her sey t=0'da yerinde, hareketi yavas yakinlasma ve vurgu sagliyor.
+  const T={head:[-1,0], row0:-1.4, step:0.10, dur:0.28};
+  T.foot=[T.row0+matches.length*T.step+0.7, T.row0+matches.length*T.step+1.3];
+  T.end=T.foot[1]+2.6;
 
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
   const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
@@ -73,14 +77,21 @@
     return el;
   });
 
+  const stage=document.getElementById('stage');
   function seek(t){
     const h=p(t,T.head[0],T.head[1]);
     $('head').style.opacity=h;
-    $('head').style.transform=`translateY(${(1-outCubic(h))*-24}px)`;
+    // Yavas push-in: kare hic donmasin ama icerik hep okunur kalsin.
+    stage.style.transform=`scale(${1+0.018*Math.min(t,6)})`;
     els.forEach((el,i)=>{
       const a=T.row0+i*T.step, k=p(t,a,a+T.dur), e=outCubic(k);
       el.style.opacity=clamp(k*1.8,0,1);
       el.style.transform=`translateY(${(1-e)*26}px)`;
+      // Bizim satirimiz nabiz atsin: goz once oraya gitsin.
+      if(matches[i] && (matches[i].home.isUs||matches[i].away.isUs)){
+        const pulse=0.5+0.5*Math.sin(t*2.4);
+        el.style.boxShadow=`inset 0 0 0 2px rgba(255,255,255,${0.16+pulse*0.30})`;
+      }
     });
     $('foot').style.opacity=p(t,T.foot[0],T.foot[1]);
   }
