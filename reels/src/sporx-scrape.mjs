@@ -297,3 +297,63 @@ export async function getStandings(ligKey = 'super-lig') {
     return { ligAdi: lig.ad, genel: rows };
   });
 }
+
+// ---- match timeline (goals, cards, subs) -----------------------------------
+//
+// The fixture feed carries scores but not who scored them. The match page does,
+// server-rendered, in a timeline where the entry's class marks the side:
+// 'left-aligned' is the home team, '1' is the away team.
+
+const EVENT_SEL = {
+  entry: /<div class='timeline-entry([^']*)'>\s*<div class='timeline-entry-inner'>(.*?)<\/div>\s*<\/div>/gs,
+  minute: /timeline-icon'>\s*([^<]*?)\s*</,
+  kind: /alt='([^']*)'/,
+  label: /timeline-label'>(.*?)<\/p>/s,
+  bold: /<b>([^<]*)<\/b>/,
+};
+
+const KINDS = { goal: 'gol', assist: 'asist', yellow: 'sari', red: 'kirmizi', inout: 'degisiklik' };
+
+export async function getMatchEvents(matchUrl, { ttlMs = 20e3 } = {}) {
+  if (!matchUrl) return [];
+  // Normalise onto the mobile host: same markup, smaller page.
+  const url = matchUrl.replace('://www.sporx.com', '://m.sporx.com');
+  const id = url.match(SEL.matchId)?.[1] || url.slice(-24);
+
+  return cached(`olay_${id}`, ttlMs, async () => {
+    const html = await fetchText(url);
+    const out = [];
+    for (const m of html.matchAll(EVENT_SEL.entry)) {
+      const cls = m[1].trim();
+      const inner = m[2];
+      const kind = KINDS[inner.match(EVENT_SEL.kind)?.[1]] || null;
+      if (!kind) continue;
+
+      const rawMinute = inner.match(EVENT_SEL.minute)?.[1] || '';
+      const label = inner.match(EVENT_SEL.label)?.[1] || '';
+      out.push({
+        minute: parseInt(rawMinute, 10) || null,
+        minuteText: rawMinute,
+        type: kind,
+        team: cls.includes('left') ? 'home' : 'away',
+        player: (label.match(EVENT_SEL.bold)?.[1] || '').trim(),
+        text: label.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+      });
+    }
+    return out;
+  }).catch(() => []);
+}
+
+// Goals only, in the order they were scored, with the running score attached so
+// a goal post can show the scoreline as it stood at that moment.
+export async function getGoals(matchUrl, opts) {
+  const events = await getMatchEvents(matchUrl, opts);
+  let h = 0, a = 0;
+  return events
+    .filter((e) => e.type === 'gol')
+    .sort((x, y) => (x.minute || 0) - (y.minute || 0))
+    .map((e) => {
+      if (e.team === 'home') h++; else a++;
+      return { ...e, homeScore: h, awayScore: a, key: `${e.minute}-${e.team}-${e.player}` };
+    });
+}

@@ -4,7 +4,7 @@ import { chromium } from 'playwright-core';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeTrack } from '../src/music.mjs';
+import { makeTrack, styleForScene } from '../src/music.mjs';
 
 // Chromium lives in different places depending on where this runs: a fixed path
 // in the dev sandbox, Playwright's own download directory in CI. An explicit
@@ -45,8 +45,11 @@ export async function renderScene({
     await page0.close();
   }
 
+  // The bed follows the scene: goal alerts get the cue with the riser, tables
+  // get something that stays out of the way.
   const audioPath = audio === 'auto'
-    ? makeTrack(duration, path.join(path.dirname(out), '_audio'))
+    ? makeTrack(duration, path.join(path.dirname(out), '_audio'),
+        styleForScene(path.basename(sceneDir)))
     : audio;
 
   const ff = spawn('ffmpeg', [
@@ -102,6 +105,7 @@ export async function renderScene({
     return {
       out, cover: fs.existsSync(coverPath) ? coverPath : null,
       audio: audioPath ? path.basename(audioPath) : null,
+      audioStyle: audio === 'auto' ? styleForScene(path.basename(sceneDir)) : null,
       seconds: +duration.toFixed(2), frames: total,
       sizeMB: +(size / 1048576).toFixed(2),
       wallSeconds: +((Date.now() - t0) / 1000).toFixed(1),

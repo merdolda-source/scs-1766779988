@@ -1,132 +1,240 @@
-// Original music, synthesised from scratch.
+// Original music, synthesised here.
 //
-// Instagram's API cannot attach tracks from Instagram's own audio library - only
-// audio baked into the file gets published. Baking in a commercial track invites
-// a copyright claim, so the track is generated here instead: it is ours, so it
-// can never be claimed against the account.
+// Instagram's API only publishes audio baked into the file - it cannot attach
+// anything from Instagram's own audio library - and a commercial track baked in
+// is what earns a copyright strike. This account has already lost one profile,
+// so the bed is built from scratch: it cannot be claimed against us.
 //
-// 128 BPM, A minor, four-chord loop. Kick, hat, sub bass, arpeggio and a soft
-// pad, mixed and soft-clipped, written straight out as a WAV.
+// Three styles, aiming at terrace atmosphere rather than generic library music:
+// layered drums, crowd wash, brass stabs, delay for space.
 import fs from 'node:fs';
 import path from 'node:path';
 
 const SR = 44100;
-const BPM = 128;
-const BEAT = 60 / BPM;
-const BAR = BEAT * 4;
-
-// A minor: Am - F - C - G
-const CHORDS = [
-  { root: 110.00, tones: [220.00, 261.63, 329.63] }, // Am
-  { root: 87.31, tones: [174.61, 220.00, 261.63] },  // F
-  { root: 130.81, tones: [261.63, 329.63, 392.00] }, // C
-  { root: 98.00, tones: [196.00, 246.94, 293.66] },  // G
-];
-
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const env = (t, attack, decay) =>
-  t < 0 ? 0 : t < attack ? t / attack : Math.exp(-(t - attack) / decay);
 
-// Cheap deterministic noise so a given track always renders identically.
-function noiseGen(seed = 12345) {
+// ---- primitives ------------------------------------------------------------
+
+function rng(seed = 987654321) {
   let s = seed >>> 0;
   return () => {
-    s ^= s << 13; s >>>= 0;
-    s ^= s >> 17;
-    s ^= s << 5; s >>>= 0;
+    s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0;
     return (s / 4294967296) * 2 - 1;
   };
 }
 
-function render(seconds) {
+// Attack/decay envelope. `hold` keeps it open before the decay starts.
+const adsr = (t, a, hold, d) => {
+  if (t < 0) return 0;
+  if (t < a) return t / a;
+  if (t < a + hold) return 1;
+  return Math.exp(-(t - a - hold) / d);
+};
+
+// Detuned saw stack - the brass-ish body of the anthem.
+function sawStack(t, f, voices = 3, detune = 0.006) {
+  let s = 0;
+  for (let v = 0; v < voices; v++) {
+    const fv = f * (1 + (v - (voices - 1) / 2) * detune);
+    const ph = (t * fv) % 1;
+    s += 2 * ph - 1;
+  }
+  return s / voices;
+}
+
+const tri = (t, f) => Math.asin(Math.sin(2 * Math.PI * f * t)) * (2 / Math.PI);
+
+// ---- drum voices -----------------------------------------------------------
+
+function kick(dt) {
+  if (dt < 0 || dt > 0.6) return 0;
+  const f = 48 + 110 * Math.exp(-dt / 0.026);
+  const click = Math.exp(-dt / 0.004) * 0.4;
+  return (Math.sin(2 * Math.PI * f * dt) + click) * adsr(dt, 0.001, 0.01, 0.13);
+}
+
+function snare(dt, n) {
+  if (dt < 0 || dt > 0.4) return 0;
+  const body = Math.sin(2 * Math.PI * 190 * dt) * 0.5 + Math.sin(2 * Math.PI * 278 * dt) * 0.3;
+  return (n() * 0.9 + body) * adsr(dt, 0.001, 0.012, 0.075);
+}
+
+function hat(dt, n, open = false) {
+  if (dt < 0 || dt > 0.3) return 0;
+  return n() * adsr(dt, 0.0008, 0.002, open ? 0.10 : 0.016);
+}
+
+// Marching toms give the terrace feel a drum kit alone does not.
+function tom(dt, f) {
+  if (dt < 0 || dt > 0.5) return 0;
+  const fr = f * (1 + 0.5 * Math.exp(-dt / 0.05));
+  return Math.sin(2 * Math.PI * fr * dt) * adsr(dt, 0.002, 0.02, 0.14);
+}
+
+// ---- styles ----------------------------------------------------------------
+
+// Progressions in A minor. Anthem leans heroic, goal leans triumphant.
+const PROG = {
+  anthem: [
+    { root: 110.00, chord: [220.00, 261.63, 329.63] }, // Am
+    { root: 87.31, chord: [174.61, 220.00, 261.63] },  // F
+    { root: 130.81, chord: [261.63, 329.63, 392.00] }, // C
+    { root: 98.00, chord: [196.00, 246.94, 293.66] },  // G
+  ],
+  goal: [
+    { root: 130.81, chord: [261.63, 329.63, 392.00] }, // C
+    { root: 98.00, chord: [196.00, 246.94, 293.66] },  // G
+    { root: 110.00, chord: [220.00, 277.18, 329.63] }, // A
+    { root: 116.54, chord: [233.08, 293.66, 349.23] }, // Bb
+  ],
+  calm: [
+    { root: 110.00, chord: [220.00, 261.63, 329.63] },
+    { root: 130.81, chord: [261.63, 329.63, 392.00] },
+    { root: 87.31, chord: [174.61, 220.00, 261.63] },
+    { root: 98.00, chord: [196.00, 246.94, 293.66] },
+  ],
+};
+
+const STYLE = {
+  anthem: { bpm: 104, prog: PROG.anthem, crowd: 0.085, brass: 0.30, toms: true, drive: 0.9 },
+  goal: { bpm: 140, prog: PROG.goal, crowd: 0.16, brass: 0.42, toms: true, drive: 1.15 },
+  calm: { bpm: 96, prog: PROG.calm, crowd: 0.035, brass: 0.15, toms: false, drive: 0.7 },
+};
+
+function render(seconds, styleName) {
+  const st = STYLE[styleName] || STYLE.anthem;
+  const BEAT = 60 / st.bpm;
+  const BAR = BEAT * 4;
   const n = Math.ceil(seconds * SR);
   const out = new Float32Array(n);
-  const noise = noiseGen();
-  let hatState = 0;
+
+  const nz = rng(4242);
+  const crowdN = rng(31337);
+  // Delay line gives the stabs room without a full reverb.
+  const delayLen = Math.floor(BEAT * 0.75 * SR);
+  const delay = new Float32Array(delayLen);
+  let dIdx = 0;
+
+  // Crowd wash: heavily smoothed noise, slowly swelling.
+  let lp1 = 0, lp2 = 0, hpState = 0;
 
   for (let i = 0; i < n; i++) {
     const t = i / SR;
     const bar = Math.floor(t / BAR);
-    const chord = CHORDS[bar % CHORDS.length];
-    const inBar = t - bar * BAR;
-    const beat = inBar / BEAT;
+    const step = st.prog[bar % st.prog.length];
+    const beat = (t - bar * BAR) / BEAT;
 
-    let s = 0;
+    let dry = 0;
+    let wet = 0;
 
-    // Kick on 1 and 3, plus a pickup before the bar turns over.
-    for (const hit of [0, 2, 3.5]) {
-      const dt = (beat - hit) * BEAT;
-      if (dt >= 0 && dt < 0.5) {
-        const f = 45 + 95 * Math.exp(-dt / 0.028);
-        s += Math.sin(2 * Math.PI * f * dt) * env(dt, 0.002, 0.10) * 0.95;
-      }
+    // --- drums
+    for (const b of [0, 2]) dry += kick((beat - b) * BEAT) * 1.0;
+    if (styleName !== 'calm') dry += kick((beat - 3.5) * BEAT) * 0.55;
+    for (const b of [1, 3]) dry += snare((beat - b) * BEAT, nz) * 0.42;
+
+    const eighth = Math.floor(beat * 2);
+    const dtH = (beat * 2 - eighth) * (BEAT / 2);
+    dry += hat(dtH, nz, eighth % 4 === 3) * (eighth % 2 ? 0.10 : 0.15);
+
+    if (st.toms && bar % 4 === 3) {
+      // Fill on the last bar of each phrase.
+      const s16 = Math.floor(beat * 4);
+      const dtT = (beat * 4 - s16) * (BEAT / 4);
+      if (s16 >= 8) dry += tom(dtT, 140 - (s16 - 8) * 8) * 0.45;
     }
 
-    // Hats on eighths, a touch quieter off the beat.
-    const eighth = beat * 2;
-    const dtH = (eighth - Math.floor(eighth)) * (BEAT / 2);
-    hatState = 0.85 * hatState + 0.15 * noise();
-    const bright = noise() - hatState;              // crude high-pass
-    s += bright * env(dtH, 0.001, 0.018) * (Math.floor(eighth) % 2 ? 0.16 : 0.24);
-
-    // Sub bass: root, re-triggered each half bar.
+    // --- bass
     const dtB = (beat % 2) * BEAT;
-    const bassEnv = env(dtB, 0.006, 0.55);
-    s += Math.sin(2 * Math.PI * chord.root * t) * bassEnv * 0.45;
-    s += Math.sin(4 * Math.PI * chord.root * t) * bassEnv * 0.10;
+    const be = adsr(dtB, 0.006, 0.10, 0.5);
+    dry += Math.sin(2 * Math.PI * step.root * t) * be * 0.50;
+    dry += Math.sin(4 * Math.PI * step.root * t) * be * 0.12;
 
-    // Sixteenth arpeggio through the chord tones.
-    const step = Math.floor(beat * 4);
-    const dtA = (beat * 4 - step) * (BEAT / 4);
-    const tone = chord.tones[step % chord.tones.length] * (step % 8 >= 4 ? 2 : 1);
-    const tri = Math.asin(Math.sin(2 * Math.PI * tone * t)) * (2 / Math.PI);
-    s += tri * env(dtA, 0.004, 0.075) * 0.20;
+    // --- brass stabs on the offbeats
+    const stab = Math.floor(beat * 2);
+    const dtS = (beat * 2 - stab) * (BEAT / 2);
+    if (stab % 2 === 0 || styleName === 'goal') {
+      let br = 0;
+      for (const f of step.chord) br += sawStack(t, f);
+      br *= adsr(dtS, 0.012, 0.03, 0.16) * st.brass;
+      dry += br;
+      wet += br * 0.35;
+    }
 
-    // Pad, quiet, just to glue it together.
-    for (const f of chord.tones) s += Math.sin(2 * Math.PI * f * t) * 0.035;
+    // --- arpeggio sparkle
+    const s16 = Math.floor(beat * 4);
+    const dtA = (beat * 4 - s16) * (BEAT / 4);
+    const tone = step.chord[s16 % step.chord.length] * 2;
+    dry += tri(t, tone) * adsr(dtA, 0.003, 0.01, 0.06) * 0.13;
 
-    // Soft clip keeps peaks in check without a hard limiter's crunch.
-    out[i] = Math.tanh(s * 0.8);
+    // --- crowd
+    const raw = crowdN();
+    lp1 += (raw - lp1) * 0.02;
+    lp2 += (lp1 - lp2) * 0.02;
+    hpState += (lp2 - hpState) * 0.0008;
+    const swell = 0.65 + 0.35 * Math.sin(t * 0.55);
+    dry += (lp2 - hpState) * st.crowd * swell * 6;
+
+    // --- delay send
+    const d = delay[dIdx];
+    dry += d * 0.32;
+    delay[dIdx] = wet + d * 0.28;
+    dIdx = (dIdx + 1) % delayLen;
+
+    out[i] = Math.tanh(dry * st.drive * 0.62);
   }
 
-  // Short fades so the file never starts or ends on a click.
-  const fade = Math.floor(0.05 * SR);
-  for (let i = 0; i < fade; i++) {
-    out[i] *= i / fade;
-    out[n - 1 - i] *= i / fade;
+  // Goal cue opens with a riser and an impact so it reads instantly as an alert.
+  if (styleName === 'goal') {
+    const rise = Math.min(n, Math.floor(1.1 * SR));
+    for (let i = 0; i < rise; i++) {
+      const u = i / rise;
+      const f = 180 + 1500 * u * u;
+      const swoosh = (nz() * 0.5 + Math.sin(2 * Math.PI * f * (i / SR))) * u * u * 0.5;
+      out[i] = Math.tanh(out[i] * (0.25 + 0.75 * u) + swoosh);
+    }
+    const imp = Math.floor(1.05 * SR);
+    for (let i = 0; i < Math.min(n - imp, Math.floor(0.6 * SR)); i++) {
+      const dt = i / SR;
+      out[imp + i] = Math.tanh(out[imp + i]
+        + Math.sin(2 * Math.PI * (60 + 90 * Math.exp(-dt / 0.03)) * dt) * Math.exp(-dt / 0.22) * 0.9);
+    }
   }
+
+  const fade = Math.floor(0.04 * SR);
+  for (let i = 0; i < fade; i++) { out[i] *= i / fade; out[n - 1 - i] *= i / fade; }
   return out;
 }
 
 function toWav(samples) {
   const n = samples.length;
   const buf = Buffer.alloc(44 + n * 2);
-  buf.write('RIFF', 0);
-  buf.writeUInt32LE(36 + n * 2, 4);
-  buf.write('WAVE', 8);
-  buf.write('fmt ', 12);
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20);          // PCM
-  buf.writeUInt16LE(1, 22);          // mono
-  buf.writeUInt32LE(SR, 24);
-  buf.writeUInt32LE(SR * 2, 28);
-  buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);
-  buf.write('data', 36);
-  buf.writeUInt32LE(n * 2, 40);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write('WAVE', 8);
+  buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22); buf.writeUInt32LE(SR, 24); buf.writeUInt32LE(SR * 2, 28);
+  buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
+  buf.write('data', 36); buf.writeUInt32LE(n * 2, 40);
   for (let i = 0; i < n; i++) {
     buf.writeInt16LE(Math.round(clamp(samples[i], -1, 1) * 32767), 44 + i * 2);
   }
   return buf;
 }
 
-// Writes a track at least `seconds` long and returns its path. Cached per
-// length, since re-synthesising the same bed for every clip is pure waste.
-export function makeTrack(seconds, dir) {
+export const STYLES = Object.keys(STYLE);
+
+// Which bed suits which scene. Goals get the alert cue; tables get something
+// that does not fight the numbers.
+export function styleForScene(scene) {
+  if (scene === 'goal') return 'goal';
+  if (scene === 'standings' || scene === 'fixtures') return 'calm';
+  return 'anthem';
+}
+
+export function makeTrack(seconds, dir, style = 'anthem') {
   const secs = Math.ceil(seconds) + 1;
-  const file = path.join(dir, `bed-${secs}s.wav`);
+  const name = STYLE[style] ? style : 'anthem';
+  const file = path.join(dir, `${name}-${secs}s.wav`);
   if (fs.existsSync(file)) return file;
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, toWav(render(secs)));
+  fs.writeFileSync(file, toWav(render(secs, name)));
   return file;
 }

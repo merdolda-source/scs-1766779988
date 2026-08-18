@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Gol</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#05070f;
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+  #bg{position:absolute;inset:0}
+  #flash{position:absolute;inset:0;background:#fff;opacity:0}
+  #stage{position:absolute;inset:0;padding:140px 70px 280px;display:flex;
+    flex-direction:column;justify-content:center;align-items:center;text-align:center}
+
+  .kicker{font-size:32px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#9fb0d0;opacity:0}
+  #min{margin-top:22px;font-size:40px;font-weight:900;letter-spacing:.04em;
+    padding:12px 30px;border-radius:99px;background:#ffffff18;box-shadow:inset 0 0 0 2px #ffffff2e;opacity:0}
+  #gol{margin-top:44px;font-size:210px;font-weight:900;line-height:.9;letter-spacing:-.05em;
+    opacity:0;text-shadow:0 20px 80px #000a}
+  #who{margin-top:18px;font-size:66px;font-weight:900;letter-spacing:-.02em;line-height:1.06;
+    max-width:900px;opacity:0}
+  #team{margin-top:14px;font-size:34px;font-weight:800;letter-spacing:.14em;
+    text-transform:uppercase;color:#b9c6e2;opacity:0}
+
+  #score{margin-top:74px;display:flex;align-items:center;gap:34px;opacity:0}
+  .sq{width:132px;height:132px;border-radius:34px;display:flex;align-items:center;justify-content:center;
+    font-size:52px;font-weight:900;box-shadow:0 22px 60px #0009, inset 0 2px 0 #ffffff28}
+  .n{font-size:126px;font-weight:900;line-height:1;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+  .sep{font-size:64px;font-weight:900;color:#4a5878}
+
+  #foot{position:absolute;left:0;right:0;bottom:180px;text-align:center;
+    font-size:29px;font-weight:700;color:#61729a;letter-spacing:.08em;opacity:0}
+</style></head>
+<body>
+<div id="bg"></div><div id="flash"></div>
+<div id="stage">
+  <div class="kicker" id="kicker"></div>
+  <div id="min"></div>
+  <div id="gol">GOL!</div>
+  <div id="who"></div>
+  <div id="team"></div>
+  <div id="score">
+    <div class="sq" id="hb"></div><div class="n" id="hs">0</div>
+    <div class="sep">-</div>
+    <div class="n" id="as">0</div><div class="sq" id="ab"></div>
+  </div>
+</div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+  const outBack=(x)=>1+2.7*Math.pow(x-1,3)+1.7*Math.pow(x-1,2);
+
+  // Whoever scored owns the colour of the card.
+  const scorer = D.team === 'home' ? D.home : D.away;
+  const other  = D.team === 'home' ? D.away : D.home;
+
+  $('bg').style.background =
+    `radial-gradient(85% 45% at 50% 30%, ${scorer.primary}3a 0%, transparent 68%),`+
+    `radial-gradient(70% 40% at 50% 92%, ${scorer.secondary}2a 0%, transparent 70%),`+
+    `linear-gradient(180deg,#070b16,#05070f)`;
+  $('kicker').textContent = D.competition || '';
+  $('min').textContent = D.minuteText || '';
+  $('who').textContent = (D.player || '').toLocaleUpperCase('tr');
+  $('team').textContent = scorer.name;
+  $('gol').style.color = scorer.primary;
+  $('hb').textContent = D.home.short; $('ab').textContent = D.away.short;
+  $('hb').style.background = `linear-gradient(150deg,${D.home.primary},${D.home.secondary})`;
+  $('ab').style.background = `linear-gradient(150deg,${D.away.primary},${D.away.secondary})`;
+  $('hs').textContent = D.home.score; $('as').textContent = D.away.score;
+  $('foot').textContent = D.handle || '';
+
+  const T={flash:[0,0.5], kick:[0.25,0.8], min:[0.45,1.0], gol:[0.35,1.15],
+           who:[1.15,1.8], team:[1.5,2.1], score:[2.2,3.0], foot:[3.6,4.2], end:7.4};
+
+  function seek(t){
+    // One hard flash on impact, then it clears out of the way.
+    $('flash').style.opacity = String((1 - p(t, T.flash[0], T.flash[1])) * 0.85);
+
+    $('kicker').style.opacity = p(t,T.kick[0],T.kick[1]);
+    const mn = p(t,T.min[0],T.min[1]);
+    $('min').style.opacity = mn;
+    $('min').style.transform = `scale(${0.8+outBack(mn)*0.2})`;
+
+    const g = p(t,T.gol[0],T.gol[1]);
+    $('gol').style.opacity = clamp(g*2,0,1);
+    // Slight overshoot then settle, plus a slow drift so it never sits static.
+    $('gol').style.transform = `scale(${0.55+outBack(g)*0.45+Math.sin(t*1.7)*0.012})`;
+
+    const w = p(t,T.who[0],T.who[1]);
+    $('who').style.opacity = w;
+    $('who').style.transform = `translateY(${(1-outCubic(w))*26}px)`;
+    $('team').style.opacity = p(t,T.team[0],T.team[1]);
+
+    const s = p(t,T.score[0],T.score[1]);
+    $('score').style.opacity = s;
+    $('score').style.transform = `translateY(${(1-outCubic(s))*30}px) scale(${0.9+outCubic(s)*0.1})`;
+
+    $('foot').style.opacity = p(t,T.foot[0],T.foot[1]);
+  }
+  seek(0);
+  window.__scene={duration:T.end,seek,meta:{player:D.player,score:D.home.score+'-'+D.away.score}};
+})();
+</script></body></html>

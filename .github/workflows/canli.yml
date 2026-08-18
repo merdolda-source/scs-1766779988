@@ -1,0 +1,96 @@
+name: Canlı maç takibi
+
+# Her 15 dakikada bir bakar; izlenecek maç yoksa saniyeler içinde çıkar.
+# Maç varsa tek uzun iş olarak maç boyunca kalır ve golleri anında paylaşır.
+# Cron tetiklemesi gol paylaşımı için fazla kaba: bir gol ancak birkaç dakika
+# taze kalır.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Sadece üret, paylaşma'
+        type: boolean
+        default: false
+      all_goals:
+        description: 'Rakip gollerini de paylaş'
+        type: boolean
+        default: false
+
+concurrency:
+  # Aynı maçı iki iş birden izlerse gol iki kez gider.
+  group: canli-takip
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: reels/package-lock.json
+
+      - name: ffmpeg kur
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Bağımlılıklar
+        working-directory: reels
+        run: npm ci
+
+      - name: Chromium kur
+        working-directory: reels
+        run: npx playwright install --with-deps chromium
+
+      - name: İzle
+        working-directory: reels
+        env:
+          DATA_LIG: ${{ vars.DATA_LIG || 'super-lig' }}
+          TEAM_NAME: ${{ vars.TEAM_NAME || 'Galatasaray' }}
+          TEAM_SHORT: ${{ vars.TEAM_SHORT || 'GS' }}
+          IG_HANDLE: ${{ vars.IG_HANDLE }}
+          IG_MODE: ${{ vars.IG_MODE || 'instagram' }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_REGION: ${{ vars.S3_REGION || 'auto' }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+          S3_PUBLIC_BASE: ${{ secrets.S3_PUBLIC_BASE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LIVE_POLL_SECONDS: ${{ vars.LIVE_POLL_SECONDS || '60' }}
+          LIVE_LEAD_MINUTES: '25'
+          TZ_NAME: Europe/Istanbul
+        run: |
+          ARGS=""
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
+          [ "${{ inputs.all_goals }}" = "true" ] && ARGS="$ARGS --all-goals"
+          node src/live.mjs $ARGS | tee live.log
+          {
+            echo '## Canlı takip'
+            echo '```'
+            tail -50 live.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Kaydı işle
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain reels/data/posted.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email 'github-actions[bot]@users.noreply.github.com'
+            git add reels/data/posted.json
+            git commit -m 'chore: canlı paylaşım kaydı [skip ci]'
+            git pull --rebase --autostash || true
+            git push
+          fi
