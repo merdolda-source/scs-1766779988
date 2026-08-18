@@ -1,9 +1,14 @@
 // Live match watcher: posts our team's goals as they happen, then the full-time
 // card when the match ends.
 //
-//   node src/live.mjs            # watch if our team is playing now or soon
-//   node src/live.mjs --dry-run  # render, never publish
-//   node src/live.mjs --all-goals   # include the opponent's goals too
+//   node src/live.mjs             # watch if our team is playing now or soon
+//   node src/live.mjs --once      # single pass: post any goal not yet posted
+//   node src/live.mjs --dry-run   # render, never publish
+//   node src/live.mjs --all-goals # include the opponent's goals too
+//
+// --once exists for schedulers that cannot fire more often than hourly. It
+// catches up rather than watching, so a goal goes out within the hour instead
+// of within the minute.
 //
 // This runs as one long job rather than a cron tick: a goal is only worth
 // posting for a few minutes, and cron granularity cannot deliver that. It exits
@@ -23,6 +28,7 @@ const DRY = flag('dry-run');
 // Only our goals go out by default: an account celebrating the opponent scoring
 // reads badly, and the full-time card covers their goals anyway.
 const ALL_GOALS = flag('all-goals') || process.env.LIVE_ALL_GOALS === '1';
+const ONCE = flag('once');
 
 const POLL_MS = Number(process.env.LIVE_POLL_SECONDS || 60) * 1000;
 const MAX_MS = Number(process.env.LIVE_MAX_MINUTES || 165) * 60000;
@@ -73,7 +79,7 @@ async function watch(match, week) {
 
   log(`izleniyor: ${match.home.name} - ${match.away.name} (${id})`);
   try {
-    while (Date.now() - started < MAX_MS) {
+    do {
       let goals = [];
       try {
         goals = await getGoals(match.url, { ttlMs: 0 });
@@ -135,8 +141,9 @@ async function watch(match, week) {
         break;
       }
 
+      if (ONCE) break;
       await sleep(POLL_MS);
-    }
+    } while (Date.now() - started < MAX_MS);
   } finally {
     await browser.close();
   }
@@ -148,8 +155,13 @@ async function watch(match, week) {
 const now = new Date();
 const fixtures = await getFixtures({ lig: config.data.lig, now });
 const target = ourMatches(fixtures).find((m) => {
-  if (m.finished) return false;
   if (m.live) return true;
+  // A catch-up pass must also look at a match that finished since the last run,
+  // otherwise late goals and the full-time card are missed entirely.
+  if (m.finished) {
+    if (!ONCE || !m.kickoff) return false;
+    return Date.now() - new Date(m.kickoff).getTime() < 6 * 3600000;
+  }
   if (!m.kickoff) return false;
   const delta = new Date(m.kickoff) - now;
   return delta > 0 && delta <= LEAD_MS;
@@ -160,7 +172,7 @@ if (!target) {
   process.exit(0);
 }
 
-if (!target.live && target.kickoff) {
+if (!ONCE && !target.live && target.kickoff) {
   const wait = new Date(target.kickoff) - Date.now();
   if (wait > 0) {
     log(`başlamaya ${Math.round(wait / 60000)} dk — bekleniyor`);

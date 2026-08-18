@@ -81,6 +81,16 @@ export const config = {
     get live() { return Boolean((env.GITHUB_TOKEN || env.GH_TOKEN) && env.GITHUB_REPOSITORY); },
   },
 
+  // Final fallback: commit the file and serve it over raw. Needs only git push
+  // rights, which every runner here has, but the repo must be public.
+  gitHost: {
+    repo: env.GIT_HOST_REPO || env.GITHUB_REPOSITORY || '',
+    branch: env.GIT_HOST_BRANCH || 'main',
+    dir: env.GIT_HOST_DIR || 'public',
+    keepDays: Number(env.GIT_HOST_KEEP_DAYS || 21),
+    get live() { return Boolean(env.GIT_HOST_REPO || env.GITHUB_REPOSITORY); },
+  },
+
   handle: env.IG_HANDLE || '@hesap',
   timezone: env.TZ_NAME || 'Europe/Istanbul',
 
@@ -98,6 +108,8 @@ export function describeMode() {
   return {
     data: config.data.usePhp ? 'php endpoint' : 'sporx (doğrudan)',
     instagram: config.instagram.live ? 'live' : 'dry-run',
-    storage: config.storage.live ? 's3' : config.releases.live ? 'github-release' : 'local',
+    storage: config.storage.live ? 's3'
+      : config.releases.live ? 'github-release'
+      : config.gitHost.live ? 'git-raw' : 'local',
   };
 }

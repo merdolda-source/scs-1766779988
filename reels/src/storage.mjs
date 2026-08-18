@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { config } from './config.mjs';
 
 // Two backends. S3 is the durable one. GitHub Releases is the free fallback:
@@ -19,7 +20,16 @@ const sha256hex = (buf) => crypto.createHash('sha256').update(buf).digest('hex')
 
 export async function uploadVideo(localPath, key) {
   if (!config.storage.live) {
-    if (config.releases.live) return uploadToRelease(localPath, key);
+    if (config.releases.live) {
+      try { return await uploadToRelease(localPath, key); }
+      catch (err) {
+        // Release upload needs REST access. A runner with only git credentials
+        // gets 403 here, so fall through to committing the file instead.
+        if (config.gitHost.live) return commitToRepo(localPath, key);
+        throw err;
+      }
+    }
+    if (config.gitHost.live) return commitToRepo(localPath, key);
     return { uploaded: false, url: null, reason: 'storage not configured', localPath };
   }
 
@@ -129,4 +139,47 @@ async function uploadToRelease(localPath, key) {
   if (!res.ok) throw new Error(`asset yüklenemedi: ${res.status} ${JSON.stringify(json)}`);
 
   return { uploaded: true, url: json.browser_download_url, bytes: body.length, backend: 'github-release' };
+}
+
+
+// ---- git backend -----------------------------------------------------------
+//
+// Last resort, for runners that can push but cannot reach the REST API. The
+// repository must be public for raw URLs to be fetchable. It grows the history,
+// so old files are pruned on the way past.
+
+function git(args, cwd) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+}
+
+function pruneOld(dir, keepDays) {
+  const cutoff = Date.now() - keepDays * 86400000;
+  for (const f of fs.readdirSync(dir)) {
+    const p = path.join(dir, f);
+    try { if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { force: true }); } catch { /* ignore */ }
+  }
+}
+
+async function commitToRepo(localPath, key) {
+  const { repo, branch, dir, keepDays } = config.gitHost;
+  const root = path.resolve(config.root, '..');
+  const target = path.join(root, dir);
+  fs.mkdirSync(target, { recursive: true });
+
+  const name = key.replace(/[^a-zA-Z0-9._-]/g, '-');
+  fs.copyFileSync(localPath, path.join(target, name));
+  pruneOld(target, keepDays);
+
+  git(['config', 'user.name', 'reels-bot'], root);
+  git(['config', 'user.email', 'reels-bot@users.noreply.github.com'], root);
+  git(['add', '-A', dir], root);
+  try { git(['commit', '-m', `chore: medya ${name} [skip ci]`], root); }
+  catch { /* nothing staged */ }
+
+  // Another run may have pushed since; rebase rather than fail.
+  try { git(['pull', '--rebase', '--autostash', 'origin', branch], root); } catch { /* ignore */ }
+  git(['push', 'origin', `HEAD:${branch}`], root);
+
+  const url = `https://raw.githubusercontent.com/${repo}/${branch}/${dir}/${name}`;
+  return { uploaded: true, url, bytes: fs.statSync(localPath).size, backend: 'git-raw' };
 }
