@@ -1,0 +1,20 @@
+{
+  "competition": "Süper Lig · 5. Hafta",
+  "venue": "RAMS Park",
+  "home": { "name": "Galatasaray", "short": "GS", "primary": "#F5B324", "secondary": "#B31226", "score": 3 },
+  "away": { "name": "Trabzonspor", "short": "TS", "primary": "#7A1E2E", "secondary": "#3EA8E5", "score": 1 },
+  "stats": [
+    { "label": "Topla oynama", "home": 58, "away": 42, "unit": "%" },
+    { "label": "Toplam şut", "home": 17, "away": 9 },
+    { "label": "İsabetli şut", "home": 8, "away": 3 },
+    { "label": "Korner", "home": 7, "away": 4 },
+    { "label": "Faul", "home": 11, "away": 16 }
+  ],
+  "goals": [
+    { "team": "home", "player": "Icardi", "minute": 12 },
+    { "team": "away", "player": "Onuachu", "minute": 34 },
+    { "team": "home", "player": "Osimhen", "minute": 61 },
+    { "team": "home", "player": "Barış Alper", "minute": 88 }
+  ],
+  "handle": "@örnek.hesap"
+}
