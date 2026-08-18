@@ -97,15 +97,20 @@ try {
     });
     if (r.errors.length) throw new Error(`${item.scene} render errors: ${r.errors.join(' | ')}`);
 
-    const key = `reels/${path.basename(out)}`;
-    const up = await uploadVideo(out, key);
-    const pub = await publishReel({ videoUrl: up.url, caption, dryRun: DRY });
+    const up = await uploadVideo(out, `reels/${path.basename(out)}`);
+    const cover = r.cover
+      ? await uploadVideo(r.cover, `reels/${path.basename(r.cover)}`).catch(() => null)
+      : null;
+    const pub = await publishReel({
+      videoUrl: up.url, coverUrl: cover?.url || null, caption, dryRun: DRY,
+    });
 
     if (pub.published) record({ key: item.key, scene: item.scene, mediaId: pub.mediaId, url: up.url });
 
     results.push({
       key: item.key, scene: item.scene,
       video: `${r.seconds}s · ${r.sizeMB}MB · ${r.wallSeconds}s render`,
+      audio: r.audio, cover: Boolean(cover?.url),
       uploaded: up.uploaded, published: pub.published,
       note: pub.reason || null,
       caption: caption.split('\n')[0],

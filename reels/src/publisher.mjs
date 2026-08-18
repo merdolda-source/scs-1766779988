@@ -18,18 +18,20 @@ async function graph(pathname, params, method = 'POST') {
   return json;
 }
 
-export async function publishReel({ videoUrl, caption, dryRun = false }) {
+export async function publishReel({ videoUrl, caption, coverUrl = null, dryRun = false }) {
   if (dryRun || !config.instagram.live || !videoUrl) {
     return {
       published: false,
       reason: !config.instagram.live ? 'instagram not configured'
         : !videoUrl ? 'no public video url' : 'dry run',
-      wouldPost: { videoUrl, caption },
+      wouldPost: { videoUrl, coverUrl, caption },
     };
   }
 
   const { id: creationId } = await graph(`/${config.instagram.userId}/media`, {
     media_type: 'REELS', video_url: videoUrl, caption, share_to_feed: 'true',
+    // Without this Instagram picks its own frame, which is usually mid-animation.
+    ...(coverUrl ? { cover_url: coverUrl } : {}),
   });
 
   // Ingestion is asynchronous; publishing too early fails.

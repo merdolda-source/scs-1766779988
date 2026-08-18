@@ -86,9 +86,18 @@ export async function planDay(now = new Date()) {
     }
   }
 
-  // League-wide filler.
+  // League-wide filler. The fixture post looks forward: a list of matches that
+  // have already been played is a result table, and the standings post already
+  // covers that ground.
+  let fixtureWeek = fixtures;
+  if (fixtures.week < (fixtures.maxWeek || fixtures.week)) {
+    try {
+      const next = await getFixtures({ lig: config.data.lig, hafta: fixtures.week + 1, now });
+      if (next.matches.length) fixtureWeek = next;
+    } catch { /* fall back to the current week */ }
+  }
   items.push({ key: `fikstur-${today}`, scene: 'fixtures', priority: 3,
-    at: atLocalSlot(now, config.cadence.slots[0]), fixtures });
+    at: atLocalSlot(now, config.cadence.slots[0]), fixtures: fixtureWeek });
   items.push({ key: `puan-${today}`, scene: 'standings', priority: 4,
     at: atLocalSlot(now, config.cadence.slots[config.cadence.slots.length - 1]) });
 
