@@ -1,0 +1,59 @@
+name: Instagram token al / yenile
+
+# Token işlemleri telefondan yapılabilsin diye buraya taşındı.
+#
+# "exchange" : Meta panelinden aldığın ~1 saatlik kısa token'ı 60 günlük
+#              kalıcı token'a çevirir. Kısa token'ı IG_SHORT_TOKEN secret'ına yaz.
+# "refresh"  : Mevcut 60 günlük token'ın süresini uzatır. 60 günde bir çalıştır.
+#
+# Sonuç iş özetine (Summary) yazılır; oradan kopyalayıp IG_ACCESS_TOKEN
+# secret'ına yapıştır. Kopyaladıktan sonra çalıştırmayı silmen iyi olur.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'İşlem'
+        type: choice
+        options: [exchange, refresh]
+        default: exchange
+
+jobs:
+  token:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Token işlemi
+        working-directory: reels
+        env:
+          IG_MODE: ${{ vars.IG_MODE || 'instagram' }}
+          IG_APP_ID: ${{ secrets.IG_APP_ID }}
+          IG_APP_SECRET: ${{ secrets.IG_APP_SECRET }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_SHORT_TOKEN: ${{ secrets.IG_SHORT_TOKEN }}
+        run: |
+          if [ "${{ inputs.mode }}" = "refresh" ]; then
+            node src/ig-setup.mjs --refresh > token.out 2>&1 || true
+          else
+            if [ -z "$IG_SHORT_TOKEN" ]; then
+              echo "IG_SHORT_TOKEN secret'ı boş. Meta panelinden aldığın kısa token'ı oraya yaz." > token.out
+            else
+              node src/ig-setup.mjs --token "$IG_SHORT_TOKEN" > token.out 2>&1 || true
+            fi
+          fi
+          {
+            echo '## Sonuç'
+            echo 'Aşağıdaki satırları kopyalayıp **Settings → Secrets** altına yaz.'
+            echo ''
+            echo '```'
+            cat token.out
+            echo '```'
+            echo ''
+            echo '> Kopyaladıktan sonra bu çalıştırmayı sil (sağ üst ⋯ → Delete workflow run).'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat token.out

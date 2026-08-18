@@ -49,7 +49,7 @@ const ff = spawn('ffmpeg', [
 ff.stderr.on('data', (d) => process.stderr.write(d));
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
   args: ['--hide-scrollbars', '--force-device-scale-factor=1', '--font-render-hinting=none'],
 });
 const page = await browser.newPage({

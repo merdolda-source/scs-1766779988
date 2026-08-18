@@ -1,0 +1,107 @@
+name: Reels üret ve paylaş
+
+# Telefondan yönetilebilsin diye her şey GitHub üzerinde çalışır: sunucu yok,
+# bilgisayar yok. Zamanlanmış çalışır, elle de tetiklenebilir.
+#
+# Cron UTC'dir. Türkiye UTC+3, yani:
+#   08:00 UTC = 11:00 TR   |   16:30 UTC = 19:30 TR
+on:
+  schedule:
+    - cron: '0 8 * * *'
+    - cron: '30 16 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Sadece video üret, paylaşma'
+        type: boolean
+        default: false
+      render_all:
+        description: 'Saatini beklemeden günün tüm gönderilerini üret'
+        type: boolean
+        default: true
+
+concurrency:
+  # İki çalıştırma aynı anda paylaşım yapıp mükerrer gönderi atmasın.
+  group: reels-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write        # posted.json'u geri yazabilmek için
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: reels/package-lock.json
+
+      - name: ffmpeg kur
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Bağımlılıklar
+        working-directory: reels
+        run: npm ci
+
+      - name: Chromium kur
+        working-directory: reels
+        run: npx playwright install --with-deps chromium
+
+      - name: Çalıştır
+        working-directory: reels
+        env:
+          DATA_LIG: ${{ vars.DATA_LIG || 'super-lig' }}
+          TEAM_NAME: ${{ vars.TEAM_NAME || 'Galatasaray' }}
+          TEAM_SHORT: ${{ vars.TEAM_SHORT || 'GS' }}
+          IG_HANDLE: ${{ vars.IG_HANDLE }}
+          IG_MODE: ${{ vars.IG_MODE || 'instagram' }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_REGION: ${{ vars.S3_REGION || 'auto' }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+          S3_PUBLIC_BASE: ${{ secrets.S3_PUBLIC_BASE }}
+          POSTS_PER_DAY: ${{ vars.POSTS_PER_DAY || '2' }}
+          POSTS_MATCH_DAY: ${{ vars.POSTS_MATCH_DAY || '4' }}
+          QUIET_DAY_CHANCE: ${{ vars.QUIET_DAY_CHANCE || '0.15' }}
+          TZ_NAME: Europe/Istanbul
+        run: |
+          ARGS=""
+          [ "${{ inputs.render_all }}" = "true" ] && ARGS="$ARGS --all"
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
+          node src/run.mjs $ARGS | tee run.log
+          {
+            echo '## Çalıştırma özeti'
+            echo '```json'
+            cat run.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Üretilen videolar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reels-${{ github.run_number }}
+          path: reels/out/*.mp4
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # Paylaşılanların kaydını depoya geri yaz; sonraki çalıştırma aynı
+      # gönderiyi tekrar atmasın.
+      - name: Kaydı işle
+        if: success()
+        run: |
+          if [ -n "$(git status --porcelain reels/data/posted.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email 'github-actions[bot]@users.noreply.github.com'
+            git add reels/data/posted.json
+            git commit -m 'chore: paylaşım kaydını güncelle [skip ci]'
+            git push
+          fi

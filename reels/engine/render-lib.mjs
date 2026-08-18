@@ -5,11 +5,17 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+// Chromium lives in different places depending on where this runs: a fixed path
+// in the dev sandbox, Playwright's own download directory in CI. An explicit
+// CHROME_PATH wins; otherwise fall back to the sandbox path if it exists, and
+// finally let Playwright resolve its own install.
+const SANDBOX_CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const CHROME = process.env.CHROME_PATH
+  || (fs.existsSync(SANDBOX_CHROME) ? SANDBOX_CHROME : undefined);
 
 export async function openBrowser() {
   return chromium.launch({
-    executablePath: CHROME,
+    ...(CHROME ? { executablePath: CHROME } : {}),
     args: ['--hide-scrollbars', '--force-device-scale-factor=1', '--font-render-hinting=none'],
   });
 }
