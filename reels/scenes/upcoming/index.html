@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Maç Öncesi</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#070b16;
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+  #bg{position:absolute;inset:0}
+  #stage{position:absolute;inset:0;padding:150px 76px 280px;display:flex;flex-direction:column;justify-content:center}
+  .kicker{font-size:34px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#8fa2c9;text-align:center}
+  #teams{display:flex;align-items:center;justify-content:center;gap:44px;margin:70px 0 56px}
+  .side{display:flex;flex-direction:column;align-items:center;gap:26px;width:340px}
+  .badge{width:220px;height:220px;border-radius:52px;display:flex;align-items:center;justify-content:center;
+    font-size:84px;font-weight:900;box-shadow:0 30px 80px #0009, inset 0 2px 0 #ffffff28}
+  .tname{font-size:40px;font-weight:800;text-align:center;line-height:1.1}
+  #vs{font-size:56px;font-weight:900;color:#46557b;letter-spacing:.04em}
+  #when{text-align:center;opacity:0}
+  #date{font-size:52px;font-weight:900;letter-spacing:-.01em}
+  #venue{font-size:32px;font-weight:600;color:#8fa2c9;margin-top:14px}
+  #cta{margin-top:62px;text-align:center;font-size:38px;font-weight:800;color:#fff;opacity:0}
+  #cta small{display:block;font-size:28px;font-weight:600;color:#8fa2c9;margin-top:14px;letter-spacing:.04em}
+  #foot{position:absolute;left:0;right:0;bottom:180px;text-align:center;
+    font-size:29px;font-weight:700;color:#61729a;letter-spacing:.08em;opacity:0}
+</style></head>
+<body>
+<div id="bg"></div>
+<div id="stage">
+  <div class="kicker" id="kicker"></div>
+  <div id="teams">
+    <div class="side"><div class="badge" id="hb"></div><div class="tname" id="hn"></div></div>
+    <div id="vs">VS</div>
+    <div class="side"><div class="badge" id="ab"></div><div class="tname" id="an"></div></div>
+  </div>
+  <div id="when"><div id="date"></div><div id="venue"></div></div>
+  <div id="cta"></div>
+</div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const T={kick:[0.1,0.8], badge:[0.45,1.5], when:[1.9,2.7], cta:[3.4,4.2], foot:[5.6,6.3], end:8.2};
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+  const outBack=(x)=>1+2.7*Math.pow(x-1,3)+1.7*Math.pow(x-1,2);
+
+  $('kicker').textContent=D.competition||'';
+  $('hb').textContent=D.home.short; $('ab').textContent=D.away.short;
+  $('hn').textContent=D.home.name.toLocaleUpperCase('tr');
+  $('an').textContent=D.away.name.toLocaleUpperCase('tr');
+  $('hb').style.background=`linear-gradient(150deg,${D.home.primary},${D.home.secondary})`;
+  $('ab').style.background=`linear-gradient(150deg,${D.away.primary},${D.away.secondary})`;
+  $('date').textContent=D.kickoffText||'';
+  $('venue').textContent=D.venue||'';
+  $('cta').innerHTML=`${D.cta||'Skor tahmininiz?'}<small>Yorumlara yazın</small>`;
+  $('foot').textContent=D.handle||'';
+  $('bg').style.background=
+    `radial-gradient(110% 48% at 22% 12%, ${D.home.primary}1f 0%, transparent 62%),`+
+    `radial-gradient(110% 48% at 78% 88%, ${D.away.primary}1f 0%, transparent 62%),`+
+    `linear-gradient(180deg,#080d1a,#06090f)`;
+
+  function seek(t){
+    $('kicker').style.opacity=p(t,T.kick[0],T.kick[1]);
+    const b=outBack(p(t,T.badge[0],T.badge[1]));
+    for(const id of ['hb','ab']){
+      $(id).style.transform=`scale(${0.62+b*0.38})`;
+      $(id).style.opacity=clamp(b*1.6,0,1);
+    }
+    const nm=p(t,T.badge[0]+0.3,T.badge[1]+0.3);
+    $('hn').style.opacity=nm; $('an').style.opacity=nm; $('vs').style.opacity=nm;
+    const w=p(t,T.when[0],T.when[1]);
+    $('when').style.opacity=w;
+    $('when').style.transform=`translateY(${(1-outCubic(w))*22}px)`;
+    const c=p(t,T.cta[0],T.cta[1]);
+    $('cta').style.opacity=c;
+    $('cta').style.transform=`translateY(${(1-outCubic(c))*18}px)`;
+    $('foot').style.opacity=p(t,T.foot[0],T.foot[1]);
+  }
+  seek(0);
+  window.__scene={duration:T.end,seek,meta:{match:D.home.name+' - '+D.away.name}};
+})();
+</script></body></html>

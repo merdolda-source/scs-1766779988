@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Puan Durumu</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#070b16;
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+  #bg{position:absolute;inset:0;background:
+    radial-gradient(120% 55% at 18% 6%, #1b2444 0%, transparent 58%),
+    radial-gradient(110% 50% at 88% 94%, #201a34 0%, transparent 60%),
+    linear-gradient(180deg,#080d1a,#06090f)}
+  #stage{position:absolute;inset:0;padding:130px 64px 260px;display:flex;flex-direction:column;justify-content:center}
+  .kicker{font-size:32px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#8fa2c9;text-align:center}
+  h1{font-size:76px;font-weight:900;letter-spacing:-.02em;text-align:center;margin:14px 0 54px}
+  .head{display:grid;grid-template-columns:74px 1fr 76px 76px 96px;gap:10px;
+    font-size:25px;font-weight:700;color:#6f80a6;letter-spacing:.12em;padding:0 22px 16px;text-transform:uppercase}
+  .r{display:grid;grid-template-columns:74px 1fr 76px 76px 96px;gap:10px;align-items:center;
+    padding:19px 22px;border-radius:18px;font-size:36px;font-weight:700;opacity:0;
+    font-variant-numeric:tabular-nums}
+  .r+.r{margin-top:9px}
+  .r.us{background:linear-gradient(90deg,#ffffff14,#ffffff06);box-shadow:inset 0 0 0 2px #ffffff1f}
+  .rank{font-weight:900;color:#8fa2c9}
+  .r.us .rank{color:#fff}
+  .tm{display:flex;align-items:center;gap:18px;min-width:0}
+  .sq{width:52px;height:52px;border-radius:15px;flex:none;display:flex;align-items:center;
+    justify-content:center;font-size:21px;font-weight:900}
+  .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c{text-align:center;color:#a8b6d4}
+  .pts{text-align:center;font-weight:900}
+  .zone{position:absolute;left:0;width:6px;height:100%;border-radius:99px}
+  #foot{position:absolute;left:0;right:0;bottom:180px;text-align:center;
+    font-size:29px;font-weight:700;color:#61729a;letter-spacing:.08em;opacity:0}
+</style></head>
+<body>
+<div id="bg"></div>
+<div id="stage">
+  <div id="head">
+    <div class="kicker" id="kicker">Süper Lig</div>
+    <h1>PUAN DURUMU</h1>
+  </div>
+  <div class="head"><div>#</div><div>Takım</div><div class="c">O</div><div class="c">AV</div><div class="c">P</div></div>
+  <div id="rows"></div>
+</div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const rowsEl=$('rows');
+  const table=(D.standings||[]).slice(0,10);
+  const T={head:[0.15,1.0], row0:1.2, step:0.42, dur:0.6, foot:[8.4,9.1], end:11.0};
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+
+  $('kicker').textContent = D.competition || 'Süper Lig';
+  $('foot').textContent = D.handle || '';
+
+  const rows=table.map(r=>{
+    const el=document.createElement('div');
+    el.className='r'+(r.isUs?' us':'');
+    const c=r.colors||['#4a5878','#2a3450'];
+    el.innerHTML=`<div class="rank">${r.rank}</div>
+      <div class="tm"><div class="sq" style="background:linear-gradient(150deg,${c[0]},${c[1]})">${r.short}</div>
+      <div class="nm">${r.team}</div></div>
+      <div class="c">${r.played}</div>
+      <div class="c">${r.gd>0?'+':''}${r.gd}</div>
+      <div class="pts">${r.points}</div>`;
+    rowsEl.appendChild(el);
+    return el;
+  });
+
+  function seek(t){
+    const h=p(t,T.head[0],T.head[1]);
+    $('head').style.opacity=h;
+    $('head').style.transform=`translateY(${(1-outCubic(h))*-24}px)`;
+    rows.forEach((el,i)=>{
+      const a=T.row0+i*T.step;
+      const k=p(t,a,a+T.dur), e=outCubic(k);
+      el.style.opacity=clamp(k*1.8,0,1);
+      el.style.transform=`translateX(${(1-e)*-40}px)`;
+    });
+    $('foot').style.opacity=p(t,T.foot[0],T.foot[1]);
+  }
+  seek(0);
+  window.__scene={duration:T.end,seek,meta:{rows:table.length}};
+})();
+</script></body></html>
