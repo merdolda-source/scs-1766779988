@@ -44,10 +44,21 @@ export const config = {
     get usePhp() { return Boolean(env.DATA_BASE_URL); },
   },
 
+  // Meta offers two routes to the same publishing endpoints and they sit on
+  // different hosts:
+  //   instagram - "Instagram API with Instagram Login", no Facebook Page needed
+  //   facebook  - "Instagram API with Facebook Login", Page required
   instagram: {
+    mode: (env.IG_MODE || 'instagram').toLowerCase(),
     userId: env.IG_USER_ID || '',
     token: env.IG_ACCESS_TOKEN || '',
-    graph: 'https://graph.facebook.com/v21.0',
+    appId: env.IG_APP_ID || '',
+    appSecret: env.IG_APP_SECRET || '',
+    version: env.IG_API_VERSION || 'v21.0',
+    get host() {
+      return this.mode === 'facebook' ? 'https://graph.facebook.com' : 'https://graph.instagram.com';
+    },
+    get graph() { return `${this.host}/${this.version}`; },
     get live() { return Boolean(env.IG_USER_ID && env.IG_ACCESS_TOKEN); },
   },
 
