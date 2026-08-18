@@ -14,6 +14,16 @@ export function hasPosted(key) {
   return load().posts.some((p) => p.key === key);
 }
 
+// Between matchweeks the next-match card and the fixture list barely change, so
+// keying only on the item id would send a near-identical post out every day.
+// This compares what the post actually contains, over a rolling window.
+export function postedRecently(fingerprint, days = 6) {
+  if (!fingerprint) return false;
+  const since = Date.now() - days * 86400000;
+  return load().posts.some((p) =>
+    p.fingerprint === fingerprint && new Date(p.at).getTime() >= since);
+}
+
 export function record(entry) {
   const s = load();
   s.posts.push({ ...entry, at: new Date().toISOString() });

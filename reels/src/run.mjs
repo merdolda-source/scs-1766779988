@@ -13,7 +13,8 @@ import { captionFor } from './captions.mjs';
 import { openBrowser, renderScene } from '../engine/render-lib.mjs';
 import { uploadVideo } from './storage.mjs';
 import { publishReel } from './publisher.mjs';
-import { hasPosted, record } from './state.mjs';
+import { hasPosted, postedRecently, record } from './state.mjs';
+import crypto from 'node:crypto';
 
 const flag = (n) => process.argv.includes('--' + n);
 const DRY = flag('dry-run');
@@ -75,19 +76,34 @@ if (plan.quiet) {
   process.exit(0);
 }
 
+// Fingerprint what the post will actually show, so a card whose content has not
+// moved since the last few days is skipped rather than reposted.
+const fingerprint = (scene, data) => crypto.createHash('sha1')
+  .update(scene + '|' + JSON.stringify(data, (k, v) => (k === 'handle' ? undefined : v)))
+  .digest('hex').slice(0, 16);
+
 const due = plan.items.filter((i) => ALL || i.at <= now);
-const skipped = plan.items.length - due.length;
-if (skipped) console.log(`${skipped} gönderi henüz zamanı gelmediği için bekliyor.`);
+const waiting = plan.items.length - due.length;
+if (waiting) console.log(`${waiting} aday henüz zamanı gelmediği için beklemede.`);
+console.log(`${due.length} aday, günün kotası ${plan.maxPosts}.`);
 
 const browser = await openBrowser();
 const results = [];
 
 try {
+  let sent = 0;
   for (const item of due) {
+    if (sent >= plan.maxPosts) { results.push({ key: item.key, status: 'kota doldu' }); continue; }
     if (hasPosted(item.key)) { results.push({ key: item.key, status: 'zaten paylaşıldı' }); continue; }
 
-    const out = path.join(config.outDir, `${plan.date}-${item.key}.mp4`);
     const data = sceneDataFor(item, plan);
+    const fp = fingerprint(item.scene, data);
+    if (postedRecently(fp)) {
+      results.push({ key: item.key, scene: item.scene, status: 'aynı içerik yakın zamanda gitti' });
+      continue;
+    }
+
+    const out = path.join(config.outDir, `${plan.date}-${item.key}.mp4`);
     const caption = captionFor(item);
 
     const r = await renderScene({
@@ -105,7 +121,10 @@ try {
       videoUrl: up.url, coverUrl: cover?.url || null, caption, dryRun: DRY,
     });
 
-    if (pub.published) record({ key: item.key, scene: item.scene, mediaId: pub.mediaId, url: up.url });
+    if (pub.published) {
+      record({ key: item.key, scene: item.scene, mediaId: pub.mediaId, url: up.url, fingerprint: fp });
+      sent++;
+    } else if (DRY) sent++;
 
     results.push({
       key: item.key, scene: item.scene,

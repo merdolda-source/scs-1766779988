@@ -101,8 +101,10 @@ export async function planDay(now = new Date()) {
   items.push({ key: `puan-${today}`, scene: 'standings', priority: 4,
     at: atLocalSlot(now, config.cadence.slots[config.cadence.slots.length - 1]) });
 
+  // Every candidate is returned, not just the first few: the runner drops
+  // anything that would repeat recent content and needs spares to fall through to.
   items.sort((a, b) => a.priority - b.priority || a.at - b.at);
-  const chosen = items.slice(0, maxPosts).sort((a, b) => a.at - b.at);
+  const chosen = items;
 
   for (const item of chosen) {
     if (item.scene === 'standings') item.standings = await getStandings({ lig: config.data.lig });
@@ -121,5 +123,8 @@ export async function planDay(now = new Date()) {
     }
   }
 
-  return { date: today, matchDay: isMatchDay, quiet: false, week: fixtures.week, items: chosen };
+  return {
+    date: today, matchDay: isMatchDay, quiet: false, week: fixtures.week,
+    maxPosts, items: chosen,
+  };
 }
