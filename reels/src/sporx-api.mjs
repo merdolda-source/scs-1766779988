@@ -91,14 +91,42 @@ async function getJson(url) {
 
 // ---- mock: mirrors the exact JSON these endpoints return -------------------
 
-function mockFixtureResponse(now) {
+function mockFixtureResponse(now, hafta) {
+  const CURRENT = 5;
+  const week = hafta || CURRENT;
   const d = (offsetDays) => {
     const x = new Date(now.getTime() + offsetDays * 86400000);
     return String(x.getDate()).padStart(2, '0') + '.' + String(x.getMonth() + 1).padStart(2, '0');
   };
+
+  // Past weeks come back played, so form can be derived offline exactly as it
+  // would be against the live endpoint.
+  if (week < CURRENT) {
+    const past = [
+      { opp: 'Kayserispor', home: true,  a: 2, b: 0 },
+      { opp: 'Eyüpspor',    home: false, a: 1, b: 1 },
+      { opp: 'Göztepe',     home: true,  a: 3, b: 2 },
+      { opp: 'Beşiktaş',    home: false, a: 0, b: 1 },
+    ][week - 1] || { opp: 'Konyaspor', home: true, a: 1, b: 0 };
+    const us = 'Galatasaray';
+    return {
+      basarili: true, lig: 'super-lig', ligAdi: 'Süper Lig',
+      hafta: week, maxHafta: 36, aktifHafta: CURRENT,
+      maclar: [{
+        takim1: past.home ? us : past.opp, takim2: past.home ? past.opp : us,
+        saat: '20:00', tarih: d(-7 * (CURRENT - week)),
+        durum: 'bitti', durumYazisi: 'MS',
+        skor1: String(past.home ? past.a : past.b),
+        skor2: String(past.home ? past.b : past.a),
+        macUrl: 'https://m.sporx.com/maci-canli-' + (200 + week),
+        takim1Logo: null, takim2Logo: null,
+      }],
+    };
+  }
+
   return {
     basarili: true, lig: 'super-lig', ligAdi: 'Süper Lig',
-    hafta: 5, maxHafta: 36, aktifHafta: 5,
+    hafta: CURRENT, maxHafta: 36, aktifHafta: CURRENT,
     maclar: [
       { takim1: 'Galatasaray', takim2: 'Trabzonspor', saat: '20:00', tarih: d(0),
         durum: 'bitti', durumYazisi: 'MS', skor1: '3', skor2: '1',
@@ -120,9 +148,11 @@ function mockFixtureResponse(now) {
 }
 
 function mockStandingsResponse() {
+  // Kept consistent with the mock fixtures above: a demo whose table contradicts
+  // its own form strip looks like a bug in the renderer.
   const teams = [
-    ['Galatasaray', 5, 5, 0, 0, 14, 3], ['Fenerbahçe', 5, 4, 1, 0, 12, 4],
-    ['Trabzonspor', 5, 3, 1, 1, 9, 5], ['Beşiktaş', 5, 3, 0, 2, 8, 6],
+    ['Fenerbahçe', 5, 4, 1, 0, 12, 4], ['Galatasaray', 5, 3, 1, 1, 9, 5],
+    ['Trabzonspor', 5, 3, 1, 1, 9, 6], ['Beşiktaş', 5, 3, 0, 2, 8, 6],
     ['Samsunspor', 5, 2, 2, 1, 7, 5], ['Göztepe', 5, 2, 1, 2, 6, 6],
     ['Başakşehir', 5, 2, 1, 2, 5, 6], ['Konyaspor', 5, 1, 2, 2, 4, 6],
     ['Alanyaspor', 5, 1, 1, 3, 4, 8], ['Kasımpaşa', 5, 0, 1, 4, 2, 12],
@@ -145,7 +175,7 @@ function mockStandingsResponse() {
 export async function getFixtures({ lig = 'super-lig', hafta = null, now = new Date() } = {}) {
   let body;
   if (!config.data.live) {
-    body = mockFixtureResponse(now);
+    body = mockFixtureResponse(now, hafta);
   } else {
     const u = new URL(config.data.base + '/fikstur.php');
     u.searchParams.set('lig', lig);
@@ -185,4 +215,42 @@ export async function getStandings({ lig = 'super-lig' } = {}) {
 // Matches involving our team, split by what has already happened.
 export function ourMatches(fixtures, teamName = config.team.name) {
   return fixtures.matches.filter((m) => m.home.name === teamName || m.away.name === teamName);
+}
+
+// Last N completed matches for a team, walked backwards from the current week.
+// The source only exposes one week per request, so this costs a handful of
+// calls; the PHP layer caches them, and a lookback cap stops a team that is
+// missing from several weeks (postponements, byes) from walking the whole season.
+export async function getTeamForm({ teamName = config.team.name, fromWeek, count = 5,
+  maxLookback = 12, excludeUrl = null, now = new Date() } = {}) {
+  const form = [];
+  for (let w = fromWeek; w >= 1 && form.length < count && fromWeek - w < maxLookback; w--) {
+    let week;
+    try {
+      week = await getFixtures({ lig: config.data.lig, hafta: w, now });
+    } catch { continue; }
+
+    for (const m of week.matches) {
+      if (form.length >= count) break;
+      if (!m.finished) continue;
+      if (excludeUrl && m.url === excludeUrl) continue;
+      const isHome = m.home.name === teamName;
+      const isAway = m.away.name === teamName;
+      if (!isHome && !isAway) continue;
+
+      const ours = isHome ? m.home.score : m.away.score;
+      const theirs = isHome ? m.away.score : m.home.score;
+      if (ours === null || theirs === null) continue;
+
+      form.push({
+        result: ours > theirs ? 'G' : ours < theirs ? 'M' : 'B',
+        opponent: isHome ? m.away.name : m.home.name,
+        opponentShort: isHome ? m.away.short : m.home.short,
+        score: `${ours}-${theirs}`,
+        isHome,
+        week: week.week,
+      });
+    }
+  }
+  return form; // newest first
 }

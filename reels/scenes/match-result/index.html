@@ -1,228 +1,207 @@
 <!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="utf-8">
-<title>Maç Sonu</title>
-<link rel="icon" href="data:,">
+<html lang="tr"><head><meta charset="utf-8"><title>Maç Sonu</title><link rel="icon" href="data:,">
 <style>
-  /* Everything here is drawn from scratch: no club crests, no broadcast frames,
-     no agency photos. Team identity is carried by colour and initials only, which
-     keeps the output clear of the rights that get football accounts taken down. */
-  :root{
-    --dim:#93a3c4;
-  }
+  /* Drawn from scratch: no crests, no broadcast frames, no photography. Team
+     identity is carried by colour and initials, which keeps the output clear of
+     the rights that get football accounts taken down. */
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:1080px;height:1920px;overflow:hidden;background:#070b16;
-    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;
-    -webkit-font-smoothing:antialiased}
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
   #bg{position:absolute;inset:0;background:
-     radial-gradient(120% 60% at 20% 8%, #1c2544 0%, transparent 60%),
-     radial-gradient(110% 55% at 85% 92%, #221730 0%, transparent 62%),
-     linear-gradient(180deg,#080d1a 0%,#06090f 100%)}
+    radial-gradient(120% 60% at 20% 8%, #1c2544 0%, transparent 60%),
+    radial-gradient(110% 55% at 85% 92%, #221730 0%, transparent 62%),
+    linear-gradient(180deg,#080d1a 0%,#06090f 100%)}
   #glow{position:absolute;inset:0;opacity:0}
+  #stage{position:absolute;inset:0;padding:118px 70px 250px;display:flex;flex-direction:column;justify-content:center}
 
-  #stage{position:absolute;left:0;right:0;top:0;bottom:0;
-    padding:120px 76px 250px;display:flex;flex-direction:column;justify-content:center}
+  .kicker{font-size:33px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#8fa2c9;text-align:center}
+  .sect{font-size:26px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#7183aa;text-align:center;margin-bottom:22px}
 
-  .kicker{font-size:34px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
-    color:#8fa2c9;text-align:center}
-  .venue{font-size:28px;font-weight:600;color:#5f6f92;text-align:center;margin-top:12px}
+  #score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;margin-top:44px}
+  .side{display:flex;flex-direction:column;align-items:center;gap:22px}
+  .badge{width:172px;height:172px;border-radius:42px;display:flex;align-items:center;justify-content:center;
+    font-size:68px;font-weight:900;box-shadow:0 26px 70px #0009, inset 0 2px 0 #ffffff28}
+  .tname{font-size:34px;font-weight:800;text-align:center;max-width:300px;line-height:1.1}
+  .num{font-size:168px;font-weight:900;line-height:.86;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+  #dash{font-size:84px;font-weight:900;color:#3b4a6b}
 
-  #head{margin-bottom:64px}
+  /* --- form --- */
+  #formWrap{margin-top:62px;opacity:0}
+  #form{display:flex;justify-content:center;gap:16px}
+  .p{width:132px;text-align:center;opacity:0}
+  .pl{height:78px;border-radius:22px;display:flex;align-items:center;justify-content:center;
+    font-size:40px;font-weight:900}
+  .pl.G{background:linear-gradient(150deg,#2fd07a,#149c56);color:#04231a}
+  .pl.B{background:linear-gradient(150deg,#8fa2c9,#5d6f96);color:#0b1120}
+  .pl.M{background:linear-gradient(150deg,#ff5f7c,#c4213f);color:#2a050e}
+  .pm{margin-top:12px;font-size:23px;font-weight:800;color:#9fb0d0;font-variant-numeric:tabular-nums}
+  .po{font-size:21px;font-weight:700;color:#68789e;margin-top:4px}
 
-  /* --- score block --- */
-  #score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:24px}
-  .side{display:flex;flex-direction:column;align-items:center;gap:26px}
-  .badge{width:190px;height:190px;border-radius:44px;display:flex;align-items:center;
-    justify-content:center;font-size:74px;font-weight:900;letter-spacing:-.02em;
-    box-shadow:0 26px 70px #0009, inset 0 2px 0 #ffffff28}
-  .tname{font-size:38px;font-weight:800;letter-spacing:-.01em;text-align:center;
-    max-width:330px;line-height:1.1}
-  .num{font-size:190px;font-weight:900;line-height:.86;letter-spacing:-.05em;
-    font-variant-numeric:tabular-nums}
-  #dash{font-size:96px;font-weight:900;color:#3b4a6b}
+  /* --- league position --- */
+  #standWrap{margin-top:58px;opacity:0}
+  #stand{display:flex;align-items:center;gap:30px;background:linear-gradient(90deg,#ffffff12,#ffffff05);
+    box-shadow:inset 0 0 0 2px #ffffff1c;border-radius:26px;padding:26px 34px}
+  #rank{font-size:82px;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  #rank small{font-size:34px;font-weight:800;color:#8fa2c9;margin-left:4px}
+  #standMid{flex:1;display:flex;flex-direction:column;gap:8px}
+  #standLbl{font-size:25px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7183aa}
+  #wdl{display:flex;gap:22px;font-size:29px;font-weight:700;color:#c3cfe8;font-variant-numeric:tabular-nums}
+  #wdl b{font-weight:900;color:#fff}
+  #pts{text-align:right}
+  #ptsN{font-size:74px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  #ptsL{font-size:24px;font-weight:800;letter-spacing:.14em;color:#7183aa;text-transform:uppercase;margin-top:6px}
 
-  /* --- stats --- */
-  #stats{margin-top:86px;display:flex;flex-direction:column;gap:38px}
-  .row{opacity:0}
-  .rlab{display:flex;justify-content:space-between;align-items:baseline;
-    font-size:33px;font-weight:700;margin-bottom:16px}
-  .rlab .mid{font-size:27px;font-weight:600;color:#8fa2c9;letter-spacing:.1em;
-    text-transform:uppercase}
-  .rlab .v{font-variant-numeric:tabular-nums;font-weight:900;font-size:40px}
-  .bar{height:20px;border-radius:99px;background:#18203a;display:flex;overflow:hidden}
-  .bar i{display:block;height:100%}
-  .bar .l{margin-left:auto;border-radius:99px 0 0 99px}
-  .bar .r{border-radius:0 99px 99px 0}
+  /* --- season tiles --- */
+  #tiles{margin-top:34px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .tile{background:#ffffff0b;box-shadow:inset 0 0 0 2px #ffffff14;border-radius:22px;
+    padding:24px 10px;text-align:center;opacity:0}
+  .tv{font-size:60px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  .tl{font-size:23px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#7183aa;margin-top:12px}
 
-  /* --- goals --- */
-  #goals{margin-top:78px;display:flex;flex-direction:column;gap:22px}
-  .goal{display:flex;align-items:center;gap:22px;font-size:38px;font-weight:700;opacity:0}
-  .goal .min{font-size:30px;font-weight:900;color:#0a0f1e;background:#fff;
-    border-radius:12px;padding:6px 14px;font-variant-numeric:tabular-nums}
-  .goal.away{flex-direction:row-reverse;text-align:right}
-  .dotc{width:16px;height:16px;border-radius:99px;flex:none}
-
-  #handle{position:absolute;left:0;right:0;bottom:190px;text-align:center;
-    font-size:30px;font-weight:700;color:#61729a;letter-spacing:.08em;opacity:0}
-</style>
-</head>
+  #handle{position:absolute;left:0;right:0;bottom:180px;text-align:center;
+    font-size:29px;font-weight:700;color:#61729a;letter-spacing:.08em;opacity:0}
+</style></head>
 <body>
-<div id="bg"></div>
-<div id="glow"></div>
+<div id="bg"></div><div id="glow"></div>
 <div id="stage">
-  <div id="head">
-    <div class="kicker" id="kicker"></div>
-    <div class="venue" id="venue"></div>
-  </div>
+  <div id="head"><div class="kicker" id="kicker"></div></div>
 
   <div id="score">
-    <div class="side">
-      <div class="badge" id="hbadge"></div>
-      <div class="tname" id="hname"></div>
+    <div class="side"><div class="badge" id="hbadge"></div><div class="tname" id="hname"></div></div>
+    <div style="display:flex;align-items:center;gap:22px">
+      <div class="num" id="hscore">0</div><div id="dash">:</div><div class="num" id="ascore">0</div>
     </div>
-    <div style="display:flex;align-items:center;gap:26px">
-      <div class="num" id="hscore">0</div>
-      <div id="dash">:</div>
-      <div class="num" id="ascore">0</div>
-    </div>
-    <div class="side">
-      <div class="badge" id="abadge"></div>
-      <div class="tname" id="aname"></div>
-    </div>
+    <div class="side"><div class="badge" id="abadge"></div><div class="tname" id="aname"></div></div>
   </div>
 
-  <div id="stats"></div>
-  <div id="goals"></div>
+  <div id="formWrap"><div class="sect" id="formLbl">SON 5 MAÇ</div><div id="form"></div></div>
+
+  <div id="standWrap">
+    <div id="stand">
+      <div id="rank">—<small>.</small></div>
+      <div id="standMid">
+        <div id="standLbl">Süper Lig</div>
+        <div id="wdl"></div>
+      </div>
+      <div id="pts"><div id="ptsN">0</div><div id="ptsL">Puan</div></div>
+    </div>
+    <div id="tiles"></div>
+  </div>
 </div>
 <div id="handle"></div>
 
 <script>
 (function () {
-  const D = window.__DATA;
-  const $ = (id) => document.getElementById(id);
+  const D = window.__DATA, $ = (id) => document.getElementById(id);
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+  const outBack=(x)=>1+2.7*Math.pow(x-1,3)+1.7*Math.pow(x-1,2);
 
-  // ---- timeline (seconds) --------------------------------------------------
-  // The data source may carry no per-match statistics and no goalscorers. Rather
-  // than render empty blocks, those sections are dropped and the timeline
-  // collapses around what is actually present.
-  const nStats = (D.stats || []).length;
-  const nGoals = (D.goals || []).length;
-  const T = { head: [0.15, 0.9], badges: [0.5, 1.5], score: [1.7, 3.0],
-              statStep: 1.15, statDur: 0.85, goalStep: 0.55, goalDur: 0.5 };
-  T.stats0 = 4.2;
-  T.goals0 = nStats ? T.stats0 + nStats * T.statStep + 0.5 : T.stats0;
-  const contentEnd = nGoals ? T.goals0 + nGoals * T.goalStep + T.goalDur
-                            : (nStats ? T.goals0 : T.score[1]);
-  T.handle = [contentEnd + 0.5, contentEnd + 1.2];
-  T.end = T.handle[1] + 1.6;
+  const form = D.form || [];
+  const st = D.standing || null;
 
-  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-  const p = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
-  const outCubic = (x) => 1 - Math.pow(1 - x, 3);
-  const outBack = (x) => 1 + 2.7 * Math.pow(x - 1, 3) + 1.7 * Math.pow(x - 1, 2);
+  // Timeline is derived from what the data actually contains, so a result with
+  // no form or no table position simply ends sooner instead of holding on empty
+  // sections.
+  const T = { head:[0.15,0.9], badges:[0.5,1.5], score:[1.7,3.0],
+              formStep:0.26, formDur:0.6 };
+  T.form0 = 3.6;
+  const formEnd = form.length ? T.form0 + form.length * T.formStep + T.formDur : T.score[1];
+  T.stand = [formEnd + 0.8, formEnd + 1.8];
+  T.tile0 = T.stand[1] + 0.15;
+  T.tileStep = 0.34; T.tileDur = 0.65;
+  const tilesEnd = st ? T.tile0 + 3 * T.tileStep + T.tileDur : T.stand[0];
+  T.handle = [tilesEnd + 1.0, tilesEnd + 1.8];
+  T.end = T.handle[1] + 2.4;
 
-  // ---- build DOM from data -------------------------------------------------
-  $('kicker').textContent = D.competition;
-  $('venue').textContent = D.venue || '';
+  $('kicker').textContent = D.competition || '';
   $('hname').textContent = D.home.name.toLocaleUpperCase('tr');
   $('aname').textContent = D.away.name.toLocaleUpperCase('tr');
-  $('hbadge').textContent = D.home.short;
-  $('abadge').textContent = D.away.short;
-  $('hbadge').style.background = `linear-gradient(150deg, ${D.home.primary}, ${D.home.secondary})`;
-  $('abadge').style.background = `linear-gradient(150deg, ${D.away.primary}, ${D.away.secondary})`;
+  $('hbadge').textContent = D.home.short; $('abadge').textContent = D.away.short;
+  $('hbadge').style.background = `linear-gradient(150deg,${D.home.primary},${D.home.secondary})`;
+  $('abadge').style.background = `linear-gradient(150deg,${D.away.primary},${D.away.secondary})`;
   $('handle').textContent = D.handle || '';
-  $('glow').style.background =
-    `radial-gradient(90% 45% at 50% 34%, ${D.home.primary}22 0%, transparent 70%)`;
+  $('glow').style.background = `radial-gradient(90% 45% at 50% 30%, ${D.home.primary}22 0%, transparent 70%)`;
 
-  const rows = D.stats.map((s) => {
+  // Oldest first reads as a run of form leading into today's result.
+  const pills = form.slice().reverse().map((f) => {
     const el = document.createElement('div');
-    el.className = 'row';
-    el.innerHTML = `
-      <div class="rlab">
-        <span class="v hv">0</span>
-        <span class="mid">${s.label}</span>
-        <span class="v av">0</span>
-      </div>
-      <div class="bar"><i class="l"></i><i class="r"></i></div>`;
-    el.querySelector('.l').style.background = `linear-gradient(90deg, ${D.home.secondary}, ${D.home.primary})`;
-    el.querySelector('.r').style.background = `linear-gradient(90deg, ${D.away.primary}, ${D.away.secondary})`;
-    $('stats').appendChild(el);
-    return { el, s,
-      hv: el.querySelector('.hv'), av: el.querySelector('.av'),
-      l: el.querySelector('.l'), r: el.querySelector('.r') };
+    el.className = 'p';
+    el.innerHTML = `<div class="pl ${f.result}">${f.result}</div>
+                    <div class="pm">${f.score}</div>
+                    <div class="po">${f.isHome ? '' : '@'}${f.opponentShort}</div>`;
+    $('form').appendChild(el);
+    return el;
   });
+  if (!form.length) $('formWrap').style.display = 'none';
+  $('formLbl').textContent = `SON ${form.length} MAÇ`;
 
-  const goals = D.goals.map((g) => {
-    const el = document.createElement('div');
-    el.className = 'goal ' + g.team;
-    const c = g.team === 'home' ? D.home.primary : D.away.primary;
-    el.innerHTML = `<span class="min">${g.minute}'</span>
-                    <span class="dotc" style="background:${c}"></span>
-                    <span>${g.player}</span>`;
-    $('goals').appendChild(el);
-    return { el, g };
-  });
+  let tiles = [];
+  if (st) {
+    $('rank').innerHTML = `${st.rank}<small>.</small>`;
+    $('standLbl').textContent = D.leagueName || 'Süper Lig';
+    $('wdl').innerHTML = `<span><b>${st.won}</b>G</span><span><b>${st.drawn}</b>B</span>`
+                       + `<span><b>${st.lost}</b>M</span><span><b>${st.played}</b>O</span>`;
+    $('ptsN').textContent = st.points;
+    tiles = [['Attığı', st.gf], ['Yediği', st.ga],
+             ['Averaj', (st.gd > 0 ? '+' : '') + st.gd]].map(([label, value]) => {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.innerHTML = `<div class="tv">${value}</div><div class="tl">${label}</div>`;
+      $('tiles').appendChild(el);
+      return el;
+    });
+  } else {
+    $('standWrap').style.display = 'none';
+  }
 
-  // ---- seek: absolute-time rendering, no CSS transitions -------------------
-  // Every visual property is a pure function of t, so a frame rendered at t is
-  // identical no matter how the renderer got there.
   function seek(t) {
     const h = p(t, T.head[0], T.head[1]);
     $('head').style.opacity = h;
-    $('head').style.transform = `translateY(${(1 - outCubic(h)) * -26}px)`;
+    $('head').style.transform = `translateY(${(1 - outCubic(h)) * -24}px)`;
 
     const b = outBack(p(t, T.badges[0], T.badges[1]));
-    for (const id of ['hbadge', 'abadge']) {
-      $(id).style.transform = `scale(${0.6 + b * 0.4})`;
+    for (const id of ['hbadge','abadge']) {
+      $(id).style.transform = `scale(${0.62 + b * 0.38})`;
       $(id).style.opacity = clamp(b * 1.6, 0, 1);
     }
     const nm = p(t, T.badges[0] + 0.25, T.badges[1] + 0.25);
     $('hname').style.opacity = nm; $('aname').style.opacity = nm;
 
-    const sc = p(t, T.score[0], T.score[1]);
-    const scE = outCubic(sc);
-    $('hscore').textContent = Math.round(D.home.score * scE);
-    $('ascore').textContent = Math.round(D.away.score * scE);
-    const pop = 0.75 + outBack(sc) * 0.25;
-    $('hscore').style.transform = `scale(${pop})`;
-    $('ascore').style.transform = `scale(${pop})`;
-    $('hscore').style.opacity = clamp(sc * 2, 0, 1);
-    $('ascore').style.opacity = clamp(sc * 2, 0, 1);
-    $('dash').style.opacity = clamp(sc * 2, 0, 1);
+    const sc = p(t, T.score[0], T.score[1]), scE = outCubic(sc);
+    $('hscore').textContent = Math.round((D.home.score ?? 0) * scE);
+    $('ascore').textContent = Math.round((D.away.score ?? 0) * scE);
+    const pop = 0.76 + outBack(sc) * 0.24;
+    $('hscore').style.transform = `scale(${pop})`; $('ascore').style.transform = `scale(${pop})`;
+    $('hscore').style.opacity = clamp(sc*2,0,1); $('ascore').style.opacity = clamp(sc*2,0,1);
+    $('dash').style.opacity = clamp(sc*2,0,1);
     $('glow').style.opacity = String(sc * 0.9);
 
-    rows.forEach((r, i) => {
-      const a = T.stats0 + i * T.statStep;
-      const k = p(t, a, a + T.statDur);
-      const e = outCubic(k);
-      r.el.style.opacity = clamp(k * 1.8, 0, 1);
-      r.el.style.transform = `translateY(${(1 - e) * 26}px)`;
-      const total = (r.s.home + r.s.away) || 1;
-      const hp = (r.s.home / total) * 100, ap = (r.s.away / total) * 100;
-      r.l.style.width = (hp * e) + '%';
-      r.r.style.width = (ap * e) + '%';
-      const u = r.s.unit || '';
-      r.hv.textContent = Math.round(r.s.home * e) + u;
-      r.av.textContent = Math.round(r.s.away * e) + u;
+    $('formWrap').style.opacity = p(t, T.form0 - 0.25, T.form0 + 0.25);
+    pills.forEach((el, i) => {
+      const a = T.form0 + i * T.formStep;
+      const k = p(t, a, a + T.formDur), e = outBack(k);
+      el.style.opacity = clamp(k * 1.8, 0, 1);
+      el.style.transform = `scale(${0.7 + e * 0.3})`;
     });
 
-    goals.forEach((gg, i) => {
-      const a = T.goals0 + i * T.goalStep;
-      const k = p(t, a, a + T.goalDur);
-      const e = outCubic(k);
-      gg.el.style.opacity = clamp(k * 1.8, 0, 1);
-      const dir = gg.g.team === 'home' ? -1 : 1;
-      gg.el.style.transform = `translateX(${(1 - e) * 34 * dir}px)`;
+    const sw = p(t, T.stand[0], T.stand[1]);
+    $('standWrap').style.opacity = sw;
+    $('standWrap').style.transform = `translateY(${(1 - outCubic(sw)) * 28}px)`;
+
+    tiles.forEach((el, i) => {
+      const a = T.tile0 + i * T.tileStep;
+      const k = p(t, a, a + T.tileDur), e = outCubic(k);
+      el.style.opacity = clamp(k * 1.8, 0, 1);
+      el.style.transform = `translateY(${(1 - e) * 20}px)`;
     });
 
     $('handle').style.opacity = p(t, T.handle[0], T.handle[1]);
   }
 
   seek(0);
-  window.__scene = { duration: T.end, seek, meta: {
-    home: D.home.name, away: D.away.name, score: D.home.score + '-' + D.away.score } };
+  window.__scene = { duration: T.end, seek,
+    meta: { score: `${D.home.score}-${D.away.score}`, form: form.length, standing: !!st } };
 })();
-</script>
-</body>
-</html>
+</script></body></html>

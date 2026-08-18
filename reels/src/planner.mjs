@@ -8,7 +8,7 @@
 // plans identically; with the ledger keyed per item, a repeat run cannot
 // double-post.
 import { config } from './config.mjs';
-import { getFixtures, getStandings, ourMatches } from './sporx-api.mjs';
+import { getFixtures, getStandings, getTeamForm, ourMatches } from './sporx-api.mjs';
 
 const HOUR = 3600000;
 
@@ -89,6 +89,19 @@ export async function planDay(now = new Date()) {
 
   for (const item of chosen) {
     if (item.scene === 'standings') item.standings = await getStandings({ lig: config.data.lig });
+
+    // A result post carries no match statistics from this source, so it is
+    // given league context instead: the run of form leading into it and where
+    // the team now sits in the table.
+    if (item.scene === 'match-result') {
+      const [table, form] = await Promise.all([
+        getStandings({ lig: config.data.lig }),
+        getTeamForm({ fromWeek: fixtures.week, count: 5, excludeUrl: item.match.url, now }),
+      ]);
+      item.standing = table.rows.find((r) => r.isUs) || null;
+      item.leagueName = table.league;
+      item.form = form;
+    }
   }
 
   return { date: today, matchDay: isMatchDay, quiet: false, week: fixtures.week, items: chosen };

@@ -34,10 +34,10 @@ function sceneDataFor(item, plan) {
     const m = item.match;
     return {
       competition: `Süper Lig${plan.week ? ' · ' + plan.week + '. Hafta' : ''}`,
-      venue: '',
       home: m.home, away: m.away,
-      stats: [],   // source carries no per-match statistics
-      goals: [],   // nor goalscorers
+      form: item.form || [],
+      standing: item.standing || null,
+      leagueName: item.leagueName || 'Süper Lig',
       handle,
     };
   }
