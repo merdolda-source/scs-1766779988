@@ -130,38 +130,105 @@ function verdict(ourScore, theirScore) {
   return 'draw';
 }
 
-// Every entry takes (rival, time) so the caller controls when on the chat
-// clock the line lands - these fire only after full time is known.
-const REACTIONS = {
-  'domination': [
-    (r, t) => msg('ismail', `${r} yedirmedik bile! Bugün her şey yerli yerinde 🔥`, t),
-    (r, t) => msg('burak', 'Rakip sahaya niye çıktı ki bugün anlamadım', t),
-  ],
-  'big-win': [
-    (r, t) => msg('ismail', 'Ne maçtı ama! Bu takım işini biliyor 💛❤️', t),
-    (r, t) => msg('hakan', 'Taksi durağında kornalar çalıyor şu an, herkes mutlu', t),
-  ],
-  'narrow-win': [
-    (r, t) => msg('necati', 'Kalp krizinden döndüm ama kazandık, önemli olan bu', t),
-    (r, t) => msg('ayse', 'Zor kazandık ama 3 puan 3 puandır, istatistik böyle söylüyor', t),
-  ],
-  'draw': [
-    (r, t) => msg('necati', 'Bizim zamanımızda bu maçı kazanırdık, hocaya söyleyin', t),
-    (r, t) => msg('burak', '1 puan da puandır diyorum kendime ama içimden bir ses inanmıyor', t),
-  ],
-  'loss': [
-    (r, t) => msg('necati', 'Bizim zamanımızda... neyse, konuşmayayım daha iyi', t),
-    (r, t) => msg('ayse', 'İstatistik bugün susuyor, yorum yapmayacağım', t),
-  ],
-};
+// Post-match only, per the brief: no goal-by-goal live commentary. The chat
+// opens after the final whistle already knows the score, and scorer names are
+// woven into the banter as trivia rather than announced as breaking news.
+//
+// Earlier drafts picked independent one-liners per character, which read as
+// a list of monologues rather than a conversation. This writes hand-authored
+// exchanges instead: characters reply to each other, tease, contradict, and
+// callback to a running gag (Hakan's implausible customer stories), which is
+// what makes a fake chat read as a real one. rng only picks which pre-written
+// episode plays, so quality stays high instead of degrading into a random mix.
+function burst(who, lines, startTime, tickFn) {
+  return lines.map((text, i) => msg(who, text, i === 0 ? startTime : tickFn(0)));
+}
 
-const CLOSERS = {
-  'domination': [(t) => msg('ismail', 'Bir sonraki maça kadar bu tadı çıkaralım 🏆', t)],
-  'big-win': [(t) => msg('hakan', 'Bu formla devam edelim, müşterilerim de umutlu', t)],
-  'narrow-win': [(t) => msg('ismail', 'Kazandık ya, gerisi teferruat. Sıradaki maça bakalım', t)],
-  'draw': [(t) => msg('ismail', 'Toparlanırız, sıradaki maç fırsat', t)],
-  'loss': [(t) => msg('ismail', 'Kafalar yukarıda, sıradaki maçta telafi ederiz 💪', t)],
-};
+function episodesFor(v, { rival, scorers, score }) {
+  const s1 = scorers[0] || null;
+  const s2 = scorers[1] || null;
+
+  if (v === 'draw') return [
+    (c) => [
+      msg('ismail', `Bitti. ${score}. Yorumu olan var mı`, c.at(0)),
+      msg('necati', 'Yorumum şu: emekliliğimi bu takım yüzünden erken aldım', c.tick(1)),
+      msg('burak', 'Necati dede sen emekli değilsin ki, işten kovuldun', c.tick(1)),
+      msg('necati', 'Kovulma da bir çeşit emeklilik Burak, terminolojiye takılma', c.tick(1)),
+      msg('ayse', `İstatistiksel olarak berabere yenilgiden iyidir, moralinizi bozmayın 📊`, c.tick(2)),
+      msg('hakan', `İstatistik mistatistik, ${rival}'a evimizde berabere kalmak ayıp be Ayşe`, c.tick(1)),
+      msg('ayse', 'Sen taksi sür Hakan, istatistiğe karışma', c.tick(1)),
+      ...burst('burak', ['😭', '😭😭😭'], c.tick(1), (n) => c.tick(n)),
+      msg('ismail', s1 ? `Tamam sakin, ${s1} güzel golü de unutmayalım` : 'Tamam sakin, iyi anlar da vardı', c.tick(2)),
+      msg('necati', 'Güzeldi de kaçırdığımız pozisyonlar aklımdan çıkmıyor', c.tick(1)),
+      msg('hakan', 'Müşterim maç yüzünden taksiden inip yürüyerek gitti, inanmayacaksınız', c.tick(2)),
+      msg('burak', 'Hakan sen her maçtan sonra farklı müşteri hikayesi anlatıyorsun, artık inanmıyorum', c.tick(1)),
+      msg('hakan', 'Vallahi billahi bu sefer gerçek', c.tick(1)),
+      msg('ismail', 'Neyse, toparlanırız. Sıradaki maça bakalım', c.tick(2)),
+      msg('necati', 'Toparlanırız da önce kalbim toparlansın', c.tick(1)),
+    ],
+    (c) => [
+      msg('ismail', `${score} bitti arkadaşlar, kimse ölmedi, sakin olalım`, c.at(0)),
+      msg('burak', 'Ben öldüm ama', c.tick(1)),
+      msg('necati', 'Bizim zamanımızda böyle maçları kazanırdık, VAR falan yoktu, oyun daha temizdi', c.tick(1)),
+      msg('ayse', 'VAR yoktu çünkü kamera yoktu Necati amca, temizlikle alakası yok', c.tick(1)),
+      msg('necati', 'Sen küçüksün anlamazsın', c.tick(1)),
+      msg('hakan', s1 ? `${s1} bugün iyiydi bence, gerisi eksik` : 'Bazı oyuncular bugün iyiydi, gerisi eksik', c.tick(2)),
+      msg('burak', 'Hakan her maçtan sonra aynı cümleyi kuruyorsun kanka, kayıtlı mı bu', c.tick(1)),
+      msg('hakan', 'Doğru olan doğrudur', c.tick(1)),
+      msg('ismail', 'Tamam beyler, bir dahaki maç 3 puan, şimdilik uyuyalım', c.tick(2)),
+      msg('necati', 'Uyku da gelmez ki bu moralle', c.tick(1)),
+    ],
+  ];
+
+  if (v === 'narrow-win') return [
+    (c) => [
+      msg('necati', `${score} bitti, kalbim durdu resmen, ambulans çağırın`, c.at(0)),
+      msg('burak', 'Necati dede sağlık raporu istiyorum artık her maçtan sonra bu tehdidi duyuyorum', c.tick(1)),
+      msg('necati', 'Bu sefer ciddiyim Burak, elim titriyor', c.tick(1)),
+      msg('ayse', '3 puan 3 puandır, zor da olsa aldık, istatistik memnun 📊', c.tick(2)),
+      msg('hakan', 'İstatistik memnunmuş, benim kalbim memnun değil ya', c.tick(1)),
+      msg('ismail', s1 ? `${s1} kritik anda sahneye çıktı, adama saygı` : 'Kritik anda gol geldi, adama saygı', c.tick(2)),
+      ...burst('burak', ['O golü gördüğümde', 'sandalyeden düştüm', 'gerçekten düştüm'], c.tick(1), (n) => c.tick(1)),
+      msg('hakan', 'Ben taksiyi kırmızı ışıkta bıraktım golü kutlarken, ceza yiyeceğim galiba', c.tick(2)),
+      msg('ayse', 'Hakan sen her golde bir felaket yaşıyorsun nasıl bir hayatın var', c.tick(1)),
+      msg('hakan', 'Taraftarlık böyle bir şey Ayşe, sen anlamazsın', c.tick(1)),
+      msg('ismail', 'Kazandık ya, gerisi teferruat. Sıradaki maça bakalım 💪', c.tick(2)),
+    ],
+  ];
+
+  if (v === 'big-win' || v === 'domination') return [
+    (c) => [
+      msg('ismail', `${score}! Ne maçtı ama arkadaşlar 🔥`, c.at(0)),
+      msg('hakan', 'Durakta korna çalıyorlar şu an, ben de katılıyorum', c.tick(1)),
+      msg('necati', 'İşte bizim bildiğimiz Galatasaray buydu, gözüm yaşardı', c.tick(1)),
+      msg('burak', 'Necati dede sen her maçtan sonra ağlıyorsun, kazanınca da kaybedince de', c.tick(1)),
+      msg('necati', 'Duygusal bir insanım Burak, ayıp mı bu', c.tick(1)),
+      msg('ayse', v === 'domination'
+        ? `Rakip bir gol bile atamadı, istatistiklere göre bu bir domination 📊`
+        : `Fark net, istatistiklere göre hakkımız fazlasıyla vardı`, c.tick(2)),
+      msg('hakan', s1 && s2 ? `${s1} ve ${s2} bugün resital çekti valla` : (s1 ? `${s1} bugün resital çekti` : 'Takım bugün resital çekti'), c.tick(2)),
+      ...burst('burak', ['Ben videoyu 5 kere izledim', 'daha izleyeceğim', 'hiç doymuyorum'], c.tick(1), (n) => c.tick(1)),
+      msg('ismail', 'Bu formla devam edelim, moraller yüksek 🏆', c.tick(2)),
+      msg('necati', 'Bu tadı sabaha kadar çıkaracağım, kimse rahatsız etmesin', c.tick(1)),
+    ],
+  ];
+
+  // loss
+  return [
+    (c) => [
+      msg('ismail', `${score} bitti. Konuşacak fazla bir şey yok ama toplanalım`, c.at(0)),
+      msg('necati', 'Bizim zamanımızda... neyse, susayım daha iyi', c.tick(1)),
+      msg('burak', 'Necati dede konuş bari, içine atma', c.tick(1)),
+      msg('necati', 'Hayır konuşmayacağım, kalbim buna dayanmaz', c.tick(1)),
+      msg('ayse', 'İstatistik bugün susuyor, ben de bir şey demiyorum', c.tick(2)),
+      msg('hakan', 'Müşterim maçı izlememiş bile, en akıllı o çıktı', c.tick(1)),
+      msg('burak', 'Keşke ben de izlemeseydim', c.tick(1)),
+      ...burst('necati', ['Hocaya bir söz söylemek istiyorum', 'ama söylemeyeceğim', 'kendime saklıyorum'], c.tick(1), (n) => c.tick(1)),
+      msg('ismail', 'Tamam beyler, kafalar yukarı, sıradaki maçta telafi ederiz 💪', c.tick(2)),
+      msg('hakan', 'Umarım, taksi durağında yüzüme bakmıyorlar şu an', c.tick(1)),
+    ],
+  ];
+}
 
 export function postMatchScript(match, goals, rng) {
   const us = config.team.name;
@@ -172,44 +239,14 @@ export function postMatchScript(match, goals, rng) {
   const v = verdict(ourScore, theirScore);
   const c = clock(match.kickoff, Boolean(match.time));
 
-  // Chronological, not result-first: the group reacts to each goal as the match
-  // clock reaches it, and only finds out the final whistle after the last one -
-  // the same order the real conversation would have happened in. Revealing the
-  // final score first and then narrating goals backward reads as broken logic.
-  const allGoals = goals || [];
-  const shown = allGoals.length <= 4
-    ? allGoals
-    : [...allGoals.slice(0, 3), allGoals[allGoals.length - 1]];
+  const scorers = (goals || [])
+    .filter((g) => (g.team === 'home') === usHome)
+    .map((g) => g.player)
+    .filter(Boolean);
+  const score = `${match.home.name} ${match.home.score}-${match.away.score} ${match.away.name}`;
 
-  const goalNotes = shown.map((g) => {
-    const scoredByUs = (g.team === 'home') === usHome;
-    const at = c.at(g.minute || 0);
-    if (!scoredByUs) {
-      return pick(rng, [
-        msg('necati', `${g.minuteText} golü yedik, savunma bir toparlansın`, at),
-        msg('burak', `${g.minuteText} dk gol yedik, kalp krizi geçirdim resmen`, at),
-      ]);
-    }
-    return pick(rng, [
-      msg('ismail', `${g.minuteText} ${g.player} GOOOL! Ne güzel attı 🔥`, at),
-      msg('ayse', `${g.minuteText} ${g.player}'den gol geldi, istatistiklere yansıdı bile`, at),
-      msg('hakan', `${g.minuteText} ${g.player} golü attı, durakta bağırışlar duyuldu`, at),
-    ]);
-  });
-
-  // Full time lands after the last goal's minute, then reactions tick forward
-  // in real time - the group is still typing a minute or two after the whistle.
-  const finalAt = c.at(93);
-  const messages = [
-    ...goalNotes,
-    sys(`⚽️ MS: ${match.home.name} ${match.home.score}-${match.away.score} ${match.away.name}`),
-    ...pickN(rng, REACTIONS[v], 1).map((f) => f(rival, c.tick(1))),
-    pick(rng, [
-      msg('hakan', 'Yorumlara skor tahmini yazan var mıydı, tutan çıktı mı bakalım', c.tick(2)),
-      msg('burak', 'Maçtan sonraki en iyi anı: notifications kapatmama rağmen herkesin mesajı', c.tick(2)),
-    ]),
-    ...CLOSERS[v].map((f) => f(c.tick(2))),
-  ];
+  const episodes = episodesFor(v, { rival, scorers, score });
+  const messages = pick(rng, episodes)(c);
 
   return {
     groupName: `${us} Taraftar Grubu`,
