@@ -70,6 +70,10 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           LIVE_POLL_SECONDS: ${{ vars.LIVE_POLL_SECONDS || '60' }}
           LIVE_LEAD_MINUTES: '25'
+          # Actions sunucuları UTC. Node'un yerel saati de İstanbul olmalı,
+          # yoksa "11:00 gönderisi" 11:00 UTC (14:00 TR) sanılır ve
+          # zamanlanmış çalıştırmada hiçbir gönderi zamanı gelmiş görünmez.
+          TZ: Europe/Istanbul
           TZ_NAME: Europe/Istanbul
         run: |
           ARGS=""

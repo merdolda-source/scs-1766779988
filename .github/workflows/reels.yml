@@ -75,6 +75,10 @@ jobs:
           POSTS_PER_DAY: ${{ vars.POSTS_PER_DAY || '2' }}
           POSTS_MATCH_DAY: ${{ vars.POSTS_MATCH_DAY || '4' }}
           QUIET_DAY_CHANCE: ${{ vars.QUIET_DAY_CHANCE || '0.15' }}
+          # Actions sunucuları UTC. Node'un yerel saati de İstanbul olmalı,
+          # yoksa "11:00 gönderisi" 11:00 UTC (14:00 TR) sanılır ve
+          # zamanlanmış çalıştırmada hiçbir gönderi zamanı gelmiş görünmez.
+          TZ: Europe/Istanbul
           TZ_NAME: Europe/Istanbul
         run: |
           ARGS=""
