@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Avatar</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1080px;overflow:hidden;background:#0a0e1a;
+    font-family:'Inter Display','Inter',system-ui,sans-serif}
+  .wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .disc{width:1080px;height:1080px;border-radius:50%;position:relative;overflow:hidden}
+  /* Instagram avatarı daireye kırpıyor; her şey güvenli daire içinde durmalı. */
+</style></head>
+<body><div class="wrap" id="w"></div>
+<script>
+const V = new URLSearchParams(location.search).get('v') || '1';
+const w = document.getElementById('w');
+const Y = '#F5B324', R = '#B31226', O = '#E8642A';
+
+function disc(inner, bg) {
+  return `<div class="disc" style="background:${bg}">${inner}</div>`;
+}
+
+if (V === '1') {
+  // Yükselen barlar: "analiz" kimliği, armaya hiç yaklaşmıyor.
+  const bars = [[300, 300, 0.42], [455, 235, 0.62], [610, 165, 1.0]]
+    .map(([x, y, h], i) => {
+      const col = [R, O, Y][i];
+      const height = 620 * h;
+      return `<rect x="${x}" y="${840 - height}" width="170" height="${height}" rx="46"
+        fill="url(#g${i})"/>
+        <defs><linearGradient id="g${i}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="${col}" stop-opacity="1"/>
+          <stop offset="1" stop-color="${col}" stop-opacity=".72"/>
+        </linearGradient></defs>`;
+    }).join('');
+  w.innerHTML = disc(`<svg width="1080" height="1080" viewBox="0 0 1080 1080">
+      <circle cx="540" cy="540" r="470" fill="none" stroke="${Y}" stroke-width="26" opacity=".22"/>
+      ${bars}
+      <path d="M300 430 L470 300 L640 350 L800 190" fill="none" stroke="#fff"
+        stroke-width="30" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/>
+      <circle cx="800" cy="190" r="46" fill="#fff"/>
+    </svg>`,
+    'radial-gradient(75% 75% at 30% 22%, #1b2444 0%, #0a0e1a 70%)');
+}
+
+if (V === '2') {
+  // Saha yayı + top: futbol dili, kulüp işareti yok.
+  w.innerHTML = disc(`<svg width="1080" height="1080" viewBox="0 0 1080 1080">
+      <defs><linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="${Y}"/><stop offset="1" stop-color="${R}"/>
+      </linearGradient></defs>
+      <circle cx="540" cy="540" r="452" fill="none" stroke="url(#ring)" stroke-width="64"/>
+      <path d="M540 236 A304 304 0 0 1 540 844" fill="none" stroke="${Y}"
+        stroke-width="30" opacity=".45"/>
+      <circle cx="540" cy="540" r="150" fill="none" stroke="#fff" stroke-width="28" opacity=".9"/>
+      <line x1="540" y1="236" x2="540" y2="844" stroke="#fff" stroke-width="28" opacity=".9"/>
+      <circle cx="540" cy="540" r="42" fill="${Y}"/>
+    </svg>`,
+    'radial-gradient(70% 70% at 32% 24%, #1c2748 0%, #090d18 72%)');
+}
+
+if (V === '3') {
+  // Sarı-kırmızı çapraz alan + beyaz şimşek: en yüksek kontrast, minik boyutta bile okunur.
+  w.innerHTML = disc(`<svg width="1080" height="1080" viewBox="0 0 1080 1080">
+      <defs>
+        <linearGradient id="d" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="${Y}"/><stop offset=".52" stop-color="${O}"/>
+          <stop offset="1" stop-color="${R}"/>
+        </linearGradient>
+      </defs>
+      <circle cx="540" cy="540" r="540" fill="url(#d)"/>
+      <circle cx="540" cy="540" r="404" fill="#0b1020" opacity=".92"/>
+      <path d="M596 226 L392 596 L520 596 L466 854 L700 470 L566 470 Z" fill="#fff"/>
+    </svg>`, '#0b1020');
+}
+window.__ready = true;
+</script></body></html>
