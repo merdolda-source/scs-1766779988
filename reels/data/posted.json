@@ -28,6 +28,13 @@
       "mediaId": "18109693870838302",
       "url": "https://raw.githubusercontent.com/merdolda-source/scs-1766779988/main/public/reels-masa-2026-08-19.mp4",
       "at": "2026-08-19T13:10:00.000Z"
+    },
+    {
+      "key": "masa-fb-2026-08-19",
+      "scene": "player-poster-fb",
+      "mediaId": "18110332553045876",
+      "url": "https://raw.githubusercontent.com/merdolda-source/scs-1766779988/main/public/reels-masa-fb-2026-08-19.mp4",
+      "at": "2026-08-19T14:05:00.000Z"
     }
   ]
 }
