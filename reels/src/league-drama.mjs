@@ -6,12 +6,12 @@
 // else in the room), and the account is broadening to all Süper Lig fans
 // rather than replacing the GS-only format.
 export const CAST = {
-  emre: { name: 'Emre (GS)', color: '#F5B324' },
-  selin: { name: 'Selin (GS)', color: '#FF6B6B' },
-  burak: { name: 'Burak (FB)', color: '#4C6FFF' },
-  ayse: { name: 'Ayşe (BJK)', color: '#E5E7EB' },
-  can: { name: 'Can (TS)', color: '#C2185B' },
-  zeynep: { name: 'Zeynep (Amedspor)', color: '#22C55E' },
+  emre: { name: 'AslanEmre (GS)', color: '#F5B324' },
+  selin: { name: 'CimbomSelin (GS)', color: '#FF6B6B' },
+  burak: { name: 'KanaryaBurak (FB)', color: '#4C6FFF' },
+  ayse: { name: 'KartalAyşe (BJK)', color: '#E5E7EB' },
+  can: { name: 'BordoCan (TS)', color: '#C2185B' },
+  zeynep: { name: 'AmedZeynep', color: '#22C55E' },
 };
 
 // A separate voice map from the GS-only cast's - six distinct premade voices,
@@ -43,32 +43,31 @@ function clock(startHour = 21, startMin = 15) {
   };
 }
 
-// User-approved script (week 1, Süper Lig, real scores). Written and approved
-// by the account owner before being wired into a video - see conversation:
-// "omce bana yaz sonra soylerim eklersin videoya" -> "yaptir bakalim".
+// Week 2 roundup - user-supplied script, real Süper Lig week-2 scores. Handed
+// over already finished (not a draft this time), so it goes straight to
+// render rather than through another review round.
 export function weeklyRoundupScript() {
   const c = clock();
   const messages = [
-    msg('zeynep', 'Lideriz beyler, 3-0 yaptık 👑', c.tick(0)),
-    msg('burak', 'Amed dur biraz, sezon yeni başladı', c.tick(2)),
-    msg('ayse', "Sen Gençlerbirliği'ne kaybettin, siktir git konuşma", c.tick(1)),
-    msg('burak', 'amk yeni başladık dedim ya daha', c.tick(1)),
-    // Laughter stands in for a spoken line here - see tts wiring, skipVoice.
-    msg('can', '😂😂😂 1-1\'im ama en azından kaybetmedim yavşak', c.tick(1), { skipVoice: true, holdSeconds: 1.8 }),
-    msg('emre', '2-2\'yiz, kimseye laf söyleyecek halim yok zaten', c.tick(1)),
-    msg('selin', 'otur Emre, moralin senden kötü', c.tick(1)),
-    msg('zeynep', '5 kişi toplam 5 puan ettiniz, ben tek başıma 3', c.tick(1)),
-    msg('burak', 'puşt hesabı yapma şimdi de', c.tick(1)),
-    msg('ayse', 'kazandım, keyfim yerinde, ağlayın siz', c.tick(1)),
-    msg('can', '1. haftadan bu hal Burak, sezon sonu ne olacak', c.tick(1)),
-    msg('burak', 'siktir lan Can sen de mi başladın', c.tick(1)),
-    msg('zeynep', '2. hafta da lider ben olurum muhtemelen', c.tick(1)),
-    msg('ayse', 'o kadar emin olma göt', c.tick(1)),
+    msg('emre', "Hafta bitti… Biz Çorum'la 2-2. Bir puan aldık bari ama sinir bozucu 😅", c.tick(0)),
+    msg('selin', 'En azından yenilmedik. Osimhen kurtardı yine.', c.tick(1)),
+    msg('burak', "Siz 2-2 kalırken biz Gençlerbirliği'ne 2-1 yenildik amk 😂 Ankara'da bozulduk.", c.tick(1)),
+    msg('ayse', "Biz Eyüpspor'u 1-0 yendik, 3 puan cebimizde. Siz büyükler batırırken biz sessizce başladık 😎", c.tick(1)),
+    msg('can', "Kasımpaşa'yla 1-1… Beraberlik de puan. Ama Fener'in kaybetmesi epey güldürdü.", c.tick(1)),
+    msg('zeynep', "Biz Erzurumspor'u 3-0 ezdik, lideriz ha! Averajla zirvedeyiz 💪 Siz birbirinizi yerken biz keyif yapıyoruz.", c.tick(1)),
+    msg('emre', 'AmedZeynep sus lan, Amed lider oldu bir haftada. Klasik sürpriz.', c.tick(1)),
+    msg('selin', "Fener'in kaybetmesi iyi oldu en azından. Beşiktaş da puan aldı, Trabzon berabere… Herkes darmadağın.", c.tick(1)),
+    msg('burak', "Susun GS'liler, siz de puan kaybettiniz. Rize Konya'yı yendi, Başakşehir 2-0 kazandı, Samsun-Göztepe 3-3… Hafta deli gibi geçti.", c.tick(1)),
+    msg('ayse', 'Doğru, herkes birbirini yedi. Biz rahatız şimdilik.', c.tick(1)),
+    // Background laughter gets layered under this line rather than replacing
+    // it - see the render driver's canItem/laughSfx wiring.
+    msg('can', 'Amed lider, Fener sıfır puan… Bu sezon eğlenceli olacak 😂', c.tick(1)),
+    msg('zeynep', 'Aynen, lider olarak selam gönderiyorum. İyi haftalar büyükler 😄', c.tick(1)),
   ];
 
   return {
     groupName: 'Süper Lig Taraftar Grubu',
-    members: 'Emre, Selin, Burak, Ayşe, Can, Zeynep',
+    members: 'AslanEmre, CimbomSelin, KanaryaBurak, KartalAyşe, BordoCan, AmedZeynep',
     avatarText: 'SL',
     messages,
   };

@@ -159,8 +159,15 @@ export async function buildMixedAudio(items, totalDuration, outPath) {
   const args = ['-y', '-hide_banner', '-loglevel', 'error'];
   for (const it of voiced) args.push('-i', it.audio);
 
-  const delays = voiced.map((it, i) =>
-    `[${i}:a]adelay=${Math.max(0, Math.round(it.audioAt * 1000))}|${Math.max(0, Math.round(it.audioAt * 1000))}[a${i}]`);
+  // A cue with no `.dir` is a pure background layer (an ambient sting placed
+  // under dialogue that's already speaking for itself, not a line's own
+  // voice or a skipVoice reaction standing in for one) - turned down so it
+  // doesn't compete with the speech on top of it.
+  const delays = voiced.map((it, i) => {
+    const ms = Math.max(0, Math.round(it.audioAt * 1000));
+    const vol = it.dir ? '' : 'volume=0.35,';
+    return `[${i}:a]${vol}adelay=${ms}|${ms}[a${i}]`;
+  });
   // amix's natural output length is its longest input, which ends when the
   // last line finishes speaking - short of the outro hold the scene adds
   // afterward. `-t` on the output only trims, it never extends a stream that
