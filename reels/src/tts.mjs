@@ -72,8 +72,8 @@ const TAIL = 0.35;     // hold on screen briefly after the line finishes
 // audio track is a few seconds shorter than the video actually runs.
 export const CHAT_OUTRO_TAIL = 3.0;
 
-export async function layoutVoicedTimeline(messages) {
-  let t = 0.3;
+export async function layoutVoicedTimeline(messages, { startAt = 0.3, voices = VOICES } = {}) {
+  let t = startAt;
   const items = [];
 
   for (const m of messages) {
@@ -88,7 +88,10 @@ export async function layoutVoicedTimeline(messages) {
       t += TYPE_DUR + 0.15;
     }
 
-    const voiceId = m.dir === 'out' ? null : VOICES[m.voiceKey];
+    // Emoji-only reaction lines (e.g. "😂😂😂") don't get a voice line - TTS
+    // reading out emoji is nonsense. A laughter sfx cue can stand in instead;
+    // see the caller for how that gets spliced into the same mix.
+    const voiceId = m.skipVoice || m.dir === 'out' ? null : voices[m.voiceKey];
     let dur = Math.max(1.0, m.text.length * 0.045); // fallback if unvoiced
     let audio = null;
 
@@ -96,6 +99,8 @@ export async function layoutVoicedTimeline(messages) {
       const clip = await synthesizeLine(m.text, voiceId);
       audio = clip.path;
       dur = clip.duration + TAIL;
+    } else if (m.skipVoice) {
+      dur = m.holdSeconds || 1.2; // how long the reaction bubble sits up on its own
     }
 
     items.push({ ...m, at: t - PRE_ROLL, dur, audio, audioAt: t });
@@ -103,6 +108,24 @@ export async function layoutVoicedTimeline(messages) {
   }
 
   return { items, totalDuration: t + 0.5 };
+}
+
+// Short generated sound effects (laughter, tension stings) - same disk-cache
+// discipline as voice lines, keyed by prompt text so a repeated cue never
+// re-bills or re-renders.
+export async function synthesizeSfx(prompt, durationSeconds = 2) {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  const file = path.join(CACHE_DIR, `sfx-${key('sfx', prompt)}.mp3`);
+  if (fs.existsSync(file)) return { path: file, duration: probeDuration(file) };
+
+  const res = await fetch(`${API}/sound-generation`, {
+    method: 'POST',
+    headers: { 'xi-api-key': config.tts.apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: prompt, duration_seconds: durationSeconds }),
+  });
+  if (!res.ok) throw new Error(`ElevenLabs sfx ${res.status}: ${await res.text()}`);
+  fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+  return { path: file, duration: probeDuration(file) };
 }
 
 // Mixes every voiced clip into one track, each delayed to the moment it should
