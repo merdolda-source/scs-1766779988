@@ -11,30 +11,35 @@ export const CAST = {
     x: 540, y: 720, scale: 0.78, coach: true,
     skin: '#dba876', hair: '#9aa0a6',
     jerseyA: '#1c2430', jerseyB: '#0c1016',
+    rect: [150, 760, 710, 1160],
   },
   baris: {
     key: 'baris', name: 'Barış', role: 'Kanat', color: '#66BB6A',
     x: 220, y: 1030, scale: 0.70,
     skin: '#e0ae82', hair: '#3b2415',
     jerseyA: '#F5B324', jerseyB: '#B31226',
+    rect: [15, 190, 270, 395],
   },
   torreira: {
     key: 'torreira', name: 'Torreira', role: 'Orta Saha', color: '#FFB74D',
     x: 540, y: 1060, scale: 0.72,
     skin: '#d9a172', hair: '#1a1108',
     jerseyA: '#F5B324', jerseyB: '#B31226',
+    rect: [270, 190, 565, 395],
   },
   sane: {
     key: 'sane', name: 'Sané', role: 'Kanat', color: '#4FC3F7',
     x: 860, y: 1030, scale: 0.70,
     skin: '#e7b78c', hair: '#d9c27a',
     jerseyA: '#F5B324', jerseyB: '#B31226',
+    rect: [585, 190, 825, 395],
   },
   osimhen: {
     key: 'osimhen', name: 'Osimhen', role: 'Santrafor', color: '#F5B324',
     x: 540, y: 1470, scale: 0.98,
     skin: '#6b4226', hair: '#0d0d0d',
     jerseyA: '#F5B324', jerseyB: '#B31226',
+    rect: [220, 395, 635, 730],
   },
 };
 
