@@ -14,6 +14,18 @@ export const CAST = {
   zeynep: { name: 'Zeynep (Amedspor)', color: '#22C55E' },
 };
 
+// A separate voice map from the GS-only cast's - six distinct premade voices,
+// picked for a spread of tone that fits each character's role in the banter
+// (Emre's resigned pride, Zeynep's smug enthusiasm, etc).
+export const VOICES = {
+  emre: 'pNInz6obpgDQGcFmaJgB',   // Adam - dominant, firm
+  selin: 'cgSgspJ2msm6clMCkdW9',  // Jessica - playful, bright
+  burak: 'N2lVS1w4EtoT3dr4eOWO',  // Callum - husky trickster
+  ayse: 'XrExE9yKIg1WjnnlVkGX',   // Matilda - knowledgeable, sharp
+  can: 'IKne3meq5aSn9XLyUdCD',    // Charlie - deep, confident, energetic
+  zeynep: 'FGY2WhTYpPnrIDTdsKH5', // Laura - quirky enthusiast
+};
+
 function msg(who, text, time, opts = {}) {
   return { dir: 'in', name: CAST[who].name, color: CAST[who].color, voiceKey: who, text, time, typingBefore: true, ...opts };
 }
