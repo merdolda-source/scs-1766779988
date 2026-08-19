@@ -64,10 +64,8 @@ export function tableTalkScript() {
     msg('okan', 'Beyler, bu hafta ne yaptınız?'),
     msg('torreira', 'Amk ben parça pinçik oldum, Sané ve Barış yüzünden.'),
     msg('osimhen', 'Ben nerdeyim ya... Barış sen nereye pas atıyorsun, uyurgezer misin maçta?'),
-    msg('baris', 'Ya tamam abi, bi kere kaçırdım.'),
     msg('osimhen', 'Sané, valla senden korkulur - bi varsın bi yoksun, korkarım bir gün patlarsın.'),
-    msg('sane', 'Ben varım işte, gol de attım.'),
-    msg('okan', "Hepiniz bundan sonra Osi'ye pas ve orta yapacaksınız. Bu kadar."),
+    msg('okan', "Hepiniz bundan sonra Osi'ye pas ve orta yapacaksınız. BU KADAR!"),
   ];
 
   return {
