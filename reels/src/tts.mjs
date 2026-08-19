@@ -28,6 +28,18 @@ function key(voiceId, text) {
   return crypto.createHash('sha1').update(voiceId + '|' + text).digest('hex').slice(0, 20);
 }
 
+// Emoji in the input confuses ElevenLabs' multilingual model - it sometimes
+// tries to vocalize the glyph, sometimes just slurs or drops the word next to
+// it. And a line ending on a bare number with no terminal punctuation ("...
+// tek başıma 3") reliably gets its last token clipped short, since the model
+// has no cue that the sentence is actually over. Neither problem is visible
+// in the bubble text (emoji stay there for the reader), only in what gets
+// sent to the API.
+function cleanForSpeech(text) {
+  const stripped = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}]/gu, '').trim();
+  return /[.!?…]$/.test(stripped) ? stripped : stripped + '.';
+}
+
 function probeDuration(file) {
   const out = execFileSync('ffprobe', [
     '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file,
@@ -96,7 +108,7 @@ export async function layoutVoicedTimeline(messages, { startAt = 0.3, voices = V
     let audio = null;
 
     if (voiceId) {
-      const clip = await synthesizeLine(m.text, voiceId);
+      const clip = await synthesizeLine(cleanForSpeech(m.text), voiceId);
       audio = clip.path;
       dur = clip.duration + TAIL;
     } else if (m.skipVoice) {
