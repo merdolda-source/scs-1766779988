@@ -91,8 +91,12 @@
   function seek(t) {
     const tx = panX(t);
     $('poster').style.transform = `translateX(${tx}px) scale(${SCALE})`;
+    // Only show the flash when the caller actually supplied a real score
+    // to attribute - a made-up or out-of-context one reads as a false
+    // claim about an actual result, not a joke.
+    const showFlash = D.flashTeams && t < 0.6;
     $('scoreflash').style.opacity = String(1 - p(t, 0.35, 0.55));
-    $('scoreflash').style.display = t < 0.6 ? 'flex' : 'none';
+    $('scoreflash').style.display = showFlash ? 'flex' : 'none';
 
     let current = null;
     for (const it of items) if (t >= it.at && t < it.at + it.dur) current = it;

@@ -53,11 +53,11 @@ function probeDuration(file) {
 // model vary its delivery more take-to-take (less monotone); higher style
 // pushes toward a more exaggerated, "smiling" read.
 const MOODS = {
-  normal: { stability: 0.45, style: 0.35 },
-  funny: { stability: 0.32, style: 0.62 },
-  laughing: { stability: 0.25, style: 0.78 },
-  serious: { stability: 0.55, style: 0.20 },
-  grumpy: { stability: 0.40, style: 0.45 },
+  normal: { stability: 0.50, style: 0.25 },
+  funny: { stability: 0.22, style: 0.75 },
+  laughing: { stability: 0.15, style: 0.90 },
+  serious: { stability: 0.65, style: 0.10 },
+  grumpy: { stability: 0.35, style: 0.55 },
 };
 
 // One line -> {path, duration}. Disk-cached by (voice, text, mood): the same

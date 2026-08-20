@@ -30,8 +30,9 @@ export function tableTalkScript() {
 
   return {
     cast: Object.values(CAST),
-    flashTeams: 'BEŞİKTAŞ - TRABZONSPOR',
-    flashScore: '3-0',
+    // No score flash: BJK and TS aren't playing each other today (both are
+    // in separate Europa League play-offs), so a "BJK-TS 3-0" open would
+    // read as a real result rather than the fictional derby banter it is.
     messages,
   };
 }
