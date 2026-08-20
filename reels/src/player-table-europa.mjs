@@ -7,27 +7,27 @@
 export const CAST = {
   italiano: {
     key: 'italiano', name: 'Vincenzo Italiano', role: 'BJK Teknik Direktör', color: '#E5E7EB',
-    rect: [20, 190, 220, 560],
+    rect: [5, 40, 210, 300],
   },
   fatihtekke: {
     key: 'fatihtekke', name: 'Fatih Tekke', role: 'TS Teknik Direktör', color: '#7FB0FF',
-    rect: [20, 780, 300, 1100],
+    rect: [545, 250, 784, 500],
   },
   vlahovic: {
-    key: 'vlahovic', name: 'Vlahović', role: 'Santrafor', color: '#8B5CF6',
-    rect: [480, 760, 784, 1168],
+    key: 'vlahovic', name: 'Vlahović', role: 'Santrafor', color: '#E5E7EB',
+    rect: [0, 380, 200, 600],
   },
   trossard: {
     key: 'trossard', name: 'Trossard', role: 'Kanat', color: '#E5E7EB',
-    rect: [220, 190, 420, 580],
+    rect: [0, 540, 300, 900],
   },
   salah: {
     key: 'salah', name: 'Salah', role: 'Kanat', color: '#7FB0FF',
-    rect: [420, 190, 620, 580],
+    rect: [370, 400, 660, 720],
   },
   onuachu: {
     key: 'onuachu', name: 'Onuachu', role: 'Santrafor', color: '#7FB0FF',
-    rect: [590, 190, 784, 600],
+    rect: [500, 540, 784, 900],
   },
 };
 
