@@ -63,7 +63,12 @@
     while (j + 1 < kf.length && kf[j + 1].t <= t) j++;
     const cur = kf[j], next = kf[j + 1];
     if (!next) return cur.tx;
-    const prog = outCubic(clamp((t - cur.t) / 0.5, 0, 1));
+    // Hold on the current speaker's position until just before the next one
+    // starts, then ease over - transitioning at kf[j].t (this speaker's own
+    // start) instead arrives at the next target long before they're done
+    // talking, since a line runs several seconds but the pan only took 0.5s.
+    const transitionStart = next.t - 0.5;
+    const prog = outCubic(clamp((t - transitionStart) / 0.5, 0, 1));
     return cur.tx + (next.tx - cur.tx) * prog;
   }
 
