@@ -47,12 +47,26 @@ function probeDuration(file) {
   return parseFloat(out.trim());
 }
 
-// One line -> {path, duration}. Disk-cached by (voice, text): the same joke
-// text never gets billed twice, which matters since the character/episode
-// pools repeat across matches.
-export async function synthesizeLine(text, voiceId) {
+// A single fixed stability/style pair reads as flat/robotic once a script
+// has more than a line or two of banter - a deadpan line and a punchline
+// shouldn't be voiced with the same restraint. Lower stability lets the
+// model vary its delivery more take-to-take (less monotone); higher style
+// pushes toward a more exaggerated, "smiling" read.
+const MOODS = {
+  normal: { stability: 0.45, style: 0.35 },
+  funny: { stability: 0.32, style: 0.62 },
+  laughing: { stability: 0.25, style: 0.78 },
+  serious: { stability: 0.55, style: 0.20 },
+  grumpy: { stability: 0.40, style: 0.45 },
+};
+
+// One line -> {path, duration}. Disk-cached by (voice, text, mood): the same
+// joke text never gets billed twice, which matters since the
+// character/episode pools repeat across matches.
+export async function synthesizeLine(text, voiceId, mood = 'normal') {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const file = path.join(CACHE_DIR, `${key(voiceId, text)}.mp3`);
+  const settings = MOODS[mood] || MOODS.normal;
+  const file = path.join(CACHE_DIR, `${key(voiceId, mood + '|' + text)}.mp3`);
   if (fs.existsSync(file)) return { path: file, duration: probeDuration(file) };
 
   const res = await fetch(`${API}/text-to-speech/${voiceId}`, {
@@ -61,7 +75,7 @@ export async function synthesizeLine(text, voiceId) {
     body: JSON.stringify({
       text,
       model_id: 'eleven_multilingual_v2',
-      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.35, use_speaker_boost: true },
+      voice_settings: { ...settings, similarity_boost: 0.8, use_speaker_boost: true },
     }),
   });
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await res.text()}`);
@@ -108,7 +122,7 @@ export async function layoutVoicedTimeline(messages, { startAt = 0.3, voices = V
     let audio = null;
 
     if (voiceId) {
-      const clip = await synthesizeLine(cleanForSpeech(m.text), voiceId);
+      const clip = await synthesizeLine(cleanForSpeech(m.text), voiceId, m.mood);
       audio = clip.path;
       dur = clip.duration + TAIL;
     } else if (m.skipVoice) {
