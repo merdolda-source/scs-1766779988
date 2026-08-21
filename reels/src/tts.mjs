@@ -28,6 +28,18 @@ function key(voiceId, text) {
   return crypto.createHash('sha1').update(voiceId + '|' + text).digest('hex').slice(0, 20);
 }
 
+// Emoji in the input confuses ElevenLabs' multilingual model - it sometimes
+// tries to vocalize the glyph, sometimes just slurs or drops the word next to
+// it. And a line ending on a bare number with no terminal punctuation ("...
+// tek başıma 3") reliably gets its last token clipped short, since the model
+// has no cue that the sentence is actually over. Neither problem is visible
+// in the bubble text (emoji stay there for the reader), only in what gets
+// sent to the API.
+function cleanForSpeech(text) {
+  const stripped = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}]/gu, '').trim();
+  return /[.!?…]$/.test(stripped) ? stripped : stripped + '.';
+}
+
 function probeDuration(file) {
   const out = execFileSync('ffprobe', [
     '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file,
@@ -35,12 +47,26 @@ function probeDuration(file) {
   return parseFloat(out.trim());
 }
 
-// One line -> {path, duration}. Disk-cached by (voice, text): the same joke
-// text never gets billed twice, which matters since the character/episode
-// pools repeat across matches.
-export async function synthesizeLine(text, voiceId) {
+// A single fixed stability/style pair reads as flat/robotic once a script
+// has more than a line or two of banter - a deadpan line and a punchline
+// shouldn't be voiced with the same restraint. Lower stability lets the
+// model vary its delivery more take-to-take (less monotone); higher style
+// pushes toward a more exaggerated, "smiling" read.
+const MOODS = {
+  normal: { stability: 0.50, style: 0.25 },
+  funny: { stability: 0.22, style: 0.75 },
+  laughing: { stability: 0.15, style: 0.90 },
+  serious: { stability: 0.65, style: 0.10 },
+  grumpy: { stability: 0.35, style: 0.55 },
+};
+
+// One line -> {path, duration}. Disk-cached by (voice, text, mood): the same
+// joke text never gets billed twice, which matters since the
+// character/episode pools repeat across matches.
+export async function synthesizeLine(text, voiceId, mood = 'normal') {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const file = path.join(CACHE_DIR, `${key(voiceId, text)}.mp3`);
+  const settings = MOODS[mood] || MOODS.normal;
+  const file = path.join(CACHE_DIR, `${key(voiceId, mood + '|' + text)}.mp3`);
   if (fs.existsSync(file)) return { path: file, duration: probeDuration(file) };
 
   const res = await fetch(`${API}/text-to-speech/${voiceId}`, {
@@ -49,7 +75,7 @@ export async function synthesizeLine(text, voiceId) {
     body: JSON.stringify({
       text,
       model_id: 'eleven_multilingual_v2',
-      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.35, use_speaker_boost: true },
+      voice_settings: { ...settings, similarity_boost: 0.8, use_speaker_boost: true },
     }),
   });
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await res.text()}`);
@@ -72,8 +98,8 @@ const TAIL = 0.35;     // hold on screen briefly after the line finishes
 // audio track is a few seconds shorter than the video actually runs.
 export const CHAT_OUTRO_TAIL = 3.0;
 
-export async function layoutVoicedTimeline(messages) {
-  let t = 0.3;
+export async function layoutVoicedTimeline(messages, { startAt = 0.3, voices = VOICES } = {}) {
+  let t = startAt;
   const items = [];
 
   for (const m of messages) {
@@ -88,14 +114,19 @@ export async function layoutVoicedTimeline(messages) {
       t += TYPE_DUR + 0.15;
     }
 
-    const voiceId = m.dir === 'out' ? null : VOICES[m.voiceKey];
+    // Emoji-only reaction lines (e.g. "😂😂😂") don't get a voice line - TTS
+    // reading out emoji is nonsense. A laughter sfx cue can stand in instead;
+    // see the caller for how that gets spliced into the same mix.
+    const voiceId = m.skipVoice || m.dir === 'out' ? null : voices[m.voiceKey];
     let dur = Math.max(1.0, m.text.length * 0.045); // fallback if unvoiced
     let audio = null;
 
     if (voiceId) {
-      const clip = await synthesizeLine(m.text, voiceId);
+      const clip = await synthesizeLine(cleanForSpeech(m.text), voiceId, m.mood);
       audio = clip.path;
       dur = clip.duration + TAIL;
+    } else if (m.skipVoice) {
+      dur = m.holdSeconds || 1.2; // how long the reaction bubble sits up on its own
     }
 
     items.push({ ...m, at: t - PRE_ROLL, dur, audio, audioAt: t });
@@ -103,6 +134,24 @@ export async function layoutVoicedTimeline(messages) {
   }
 
   return { items, totalDuration: t + 0.5 };
+}
+
+// Short generated sound effects (laughter, tension stings) - same disk-cache
+// discipline as voice lines, keyed by prompt text so a repeated cue never
+// re-bills or re-renders.
+export async function synthesizeSfx(prompt, durationSeconds = 2) {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  const file = path.join(CACHE_DIR, `sfx-${key('sfx', prompt)}.mp3`);
+  if (fs.existsSync(file)) return { path: file, duration: probeDuration(file) };
+
+  const res = await fetch(`${API}/sound-generation`, {
+    method: 'POST',
+    headers: { 'xi-api-key': config.tts.apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: prompt, duration_seconds: durationSeconds }),
+  });
+  if (!res.ok) throw new Error(`ElevenLabs sfx ${res.status}: ${await res.text()}`);
+  fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+  return { path: file, duration: probeDuration(file) };
 }
 
 // Mixes every voiced clip into one track, each delayed to the moment it should
@@ -124,8 +173,15 @@ export async function buildMixedAudio(items, totalDuration, outPath) {
   const args = ['-y', '-hide_banner', '-loglevel', 'error'];
   for (const it of voiced) args.push('-i', it.audio);
 
-  const delays = voiced.map((it, i) =>
-    `[${i}:a]adelay=${Math.max(0, Math.round(it.audioAt * 1000))}|${Math.max(0, Math.round(it.audioAt * 1000))}[a${i}]`);
+  // A cue with no `.dir` is a pure background layer (an ambient sting placed
+  // under dialogue that's already speaking for itself, not a line's own
+  // voice or a skipVoice reaction standing in for one) - turned down so it
+  // doesn't compete with the speech on top of it.
+  const delays = voiced.map((it, i) => {
+    const ms = Math.max(0, Math.round(it.audioAt * 1000));
+    const vol = it.dir ? '' : 'volume=0.35,';
+    return `[${i}:a]${vol}adelay=${ms}|${ms}[a${i}]`;
+  });
   // amix's natural output length is its longest input, which ends when the
   // last line finishes speaking - short of the outro hold the scene adds
   // afterward. `-t` on the output only trims, it never extends a stream that

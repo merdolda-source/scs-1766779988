@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Masa - poster</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#0a1410;
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+
+  /* Poster is 832x1248 (2:3) inside a 1080x1920 (9:16) canvas - contain-fit,
+     never cropped, so none of the source art or speech bubbles are lost. */
+  #poster{position:absolute;left:50%;top:50%;width:832px;height:1248px;
+    margin:-624px 0 0 -416px;transform:scale(1.2981);transform-origin:center center}
+  #poster img{display:block;width:832px;height:1248px}
+
+  /* Standard CSS spotlight trick: a box sized to the active speaker's region
+     with a huge spread box-shadow darkens everything else on the canvas
+     without touching the box's own interior. */
+  .spot{position:absolute;border-radius:26px;
+    box-shadow:0 0 0 2000px rgba(6,10,8,.74);opacity:0;
+    outline:3px solid #ffcf40; outline-offset:-3px}
+
+  #capbar{position:absolute;left:0;right:0;bottom:0;height:420px;
+    background:linear-gradient(180deg,transparent,#0a1410cc 45%,#0a1410 75%)}
+  #cap{position:absolute;left:50px;right:50px;bottom:150px;text-align:center;opacity:0}
+  #cap .who{font-size:26px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;
+    margin-bottom:10px;color:#ffcf40}
+  #cap .line{font-size:38px;font-weight:800;line-height:1.28;text-shadow:0 4px 20px #000c}
+
+  #foot{position:absolute;left:0;right:0;bottom:48px;text-align:center;
+    font-size:26px;font-weight:700;color:#5c7a68;letter-spacing:.08em;opacity:0}
+</style></head>
+<body>
+<div id="poster"><img src="poster.jpg"></div>
+<div id="spots"></div>
+<div id="capbar"></div>
+<div id="cap"><div class="who" id="capWho"></div><div class="line" id="capLine"></div></div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+
+  $('foot').textContent = D.handle || '';
+
+  // Image-pixel rects (832x1248 source), hand-placed to match this specific
+  // poster's layout - scaled into canvas space by the same 1.2981 contain-fit
+  // factor and centering offset used on #poster above.
+  const S = 1.2981, OX = (1080 - 832 * S) / 2, OY = (1920 - 1248 * S) / 2;
+  const toCanvas = (x1, y1, x2, y2) => ({
+    left: OX + x1 * S, top: OY + y1 * S, width: (x2 - x1) * S, height: (y2 - y1) * S,
+  });
+
+  const spotsEl = $('spots');
+  const boxes = {};
+  for (const c of D.cast) {
+    if (!c.rect) continue;
+    const r = toCanvas(...c.rect);
+    const el = document.createElement('div');
+    el.className = 'spot';
+    el.style.left = r.left + 'px'; el.style.top = r.top + 'px';
+    el.style.width = r.width + 'px'; el.style.height = r.height + 'px';
+    spotsEl.appendChild(el);
+    boxes[c.key] = el;
+  }
+
+  const items = D.items || [];
+
+  function visibility(t, a, b) {
+    return Math.min(p(t, a - 0.15, a + 0.08), 1 - p(t, b - 0.10, b + 0.30));
+  }
+
+  function seek(t) {
+    let current = null;
+    for (const key in boxes) boxes[key].style.opacity = '0';
+    for (const it of items) {
+      const v = visibility(t, it.at, it.at + it.dur);
+      if (v > 0 && boxes[it.speakerKey]) {
+        boxes[it.speakerKey].style.opacity = String(clamp(v, 0, 1));
+      }
+      if (t >= it.at && t < it.at + it.dur) current = it;
+    }
+
+    if (current) {
+      $('cap').style.opacity = '1';
+      $('capWho').textContent = current.name || '';
+      $('capLine').textContent = current.text || '';
+    } else {
+      $('cap').style.opacity = '0';
+    }
+
+    const rawEnd = D.totalDuration || (items.length ? Math.max(...items.map((it) => it.at + it.dur)) : 1);
+    const lastAt = rawEnd + 0.4;
+    $('foot').style.opacity = String(p(t, lastAt + 0.3, lastAt + 0.9));
+  }
+
+  seek(0);
+  const rawEnd = D.totalDuration || (items.length ? Math.max(...items.map((it) => it.at + it.dur)) : 1);
+  window.__scene = { duration: rawEnd + 0.4 + 2.6, seek, beats: items.map((it) => it.at), meta: { lines: items.length } };
+})();
+</script></body></html>
