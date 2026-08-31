@@ -24,12 +24,13 @@ function msg(who, text, mood = 'normal') {
 }
 
 export function tableTalkScript() {
+  // Maç Amed'in sahasındaydı - Trabzonspor deplasmanda kaybetti, evinde değil.
   const messages = [
-    msg('amed', "Karadeniz fırtınası mı? Bizde rüzgar bile esmedi. Hamsiyi evinde kızarttık, üstüne de limon sıktık. Afiyet olsun Trabzon, bir dahaki sefere tuzunu da getir.", 'laughing'),
-    msg('gs', 'Aslan olarak söylüyorum, bu hamsi biraz fazla tuzluymuş. Evde yenilmek ayrı, evde "fırtına" deyip esmemek ayrı. Kartal geldi, fırtınayı durdurdu.', 'funny'),
-    msg('bjk', 'Kara kartal konuşuyor: bir kartal daha çıktı, senin fırtınan durdu. Hamsi hem evinde hem de sahada battı. Bordo-mavi renkler bu akşam yeşil-kırmızıya boyandı.', 'funny'),
-    msg('fb', 'Kanarya olarak cik cik demiyorum artık, gak gak diyorum. Trabzonspor evinde yenildi, üstüne bir de "Karadeniz fırtınası" diye hava attı. Fırtına değil, esintiymiş meğer.', 'laughing'),
-    msg('ts', 'Tamam tamam anladık, hepiniz birleştiniz. Evde yenildik, fırtına durdu, hamsi kızardı. Bir dahaki sefere tuzsuz ve susuz geliriz. Şimdi susun da yemeğimizi yiyelim.', 'grumpy'),
+    msg('amed', "Karadeniz fırtınası mı? Bizim sahamızda rüzgar bile esmedi. Hamsiyi kendi evimizde kızarttık, üstüne de limon sıktık. Afiyet olsun Trabzon, bir dahaki sefere tuzunu da getir.", 'laughing'),
+    msg('gs', 'Aslan olarak söylüyorum, bu hamsi biraz fazla tuzluymuş. Deplasmanda yenilmek ayrı, deplasmanda "fırtına" deyip esmemek ayrı. Kartal geldi, fırtınayı durdurdu.', 'funny'),
+    msg('bjk', 'Kara kartal konuşuyor: bir kartal daha çıktı, senin fırtınan durdu. Hamsi hem deplasmanda hem de sahada battı. Bordo-mavi renkler bu akşam yeşil-kırmızıya boyandı.', 'funny'),
+    msg('fb', 'Kanarya olarak cik cik demiyorum artık, gak gak diyorum. Trabzonspor Amed deplasmanında yenildi, üstüne bir de "Karadeniz fırtınası" diye hava attı. Fırtına değil, esintiymiş meğer.', 'laughing'),
+    msg('ts', 'Tamam tamam anladık, hepiniz birleştiniz. Deplasmanda yenildik, fırtına durdu, hamsi kızardı. Bir dahaki sefere tuzsuz ve susuz geliriz. Şimdi susun da yemeğimizi yiyelim.', 'grumpy'),
   ];
 
   return {
