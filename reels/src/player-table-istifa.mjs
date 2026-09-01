@@ -19,13 +19,11 @@ function msg(who, text, mood = 'normal') {
 }
 
 export function tableTalkScript() {
+  // Sadece kullanıcının yazdığı iki replik - vurgulu/abartılı teslim için
+  // en dışa dönük mood'lar seçildi (bkz. MOODS in tts.mjs).
   const messages = [
-    msg('tekke', 'Sayın başkan, ben istifa ediyorum.', 'serious'),
+    msg('tekke', 'Sayın başkan, ben istifa ediyorum.', 'funny'),
     msg('yonetim', 'Hayır, sen istifa edemezsin. Ben seni kovuyorum.', 'grumpy'),
-    msg('tekke', 'Ama... en azından haysiyetimle gideyim!', 'funny'),
-    msg('yonetim', 'Haysiyetin de bizim, imza attın, sözleşme bizim.', 'grumpy'),
-    msg('tekke', 'Peki hocam... yani başkanım, ne olacak şimdi?', 'funny'),
-    msg('yonetim', 'Yeni hoca gelene kadar otur, hamsi de seyretsin.', 'laughing'),
   ];
 
   return {
