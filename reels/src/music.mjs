@@ -250,7 +250,7 @@ export const STYLES = Object.keys(STYLE);
 // that does not fight the numbers.
 export function styleForScene(scene) {
   if (scene === 'goal') return 'goal';
-  if (scene === 'standings' || scene === 'fixtures') return 'calm';
+  if (scene === 'standings' || scene === 'fixtures' || scene === 'predictions') return 'calm';
   if (scene === 'chat-drama') return 'chat';
   return 'anthem';
 }

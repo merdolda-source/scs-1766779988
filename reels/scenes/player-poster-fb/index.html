@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Masa - FB poster</title><link rel="icon" href="data:,">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#0a1410;
+    font-family:'Inter Display','Inter',system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+
+  /* Source poster is landscape (1248x832). Scaling by 2.3077 makes its
+     height exactly fill the 1920-tall canvas with no letterboxing; the
+     camera then pans horizontally (translateX only) to whoever is
+     speaking, since panning a wide poster into a tall reel is more
+     natural than shrinking everyone down to fit the whole width at once. */
+  #poster{position:absolute;left:0;top:0;width:1248px;height:832px;
+    transform-origin:top left}
+
+  #capbar{position:absolute;left:0;right:0;bottom:0;height:420px;
+    background:linear-gradient(180deg,transparent,#0a1410cc 45%,#0a1410 75%)}
+  #cap{position:absolute;left:50px;right:50px;bottom:150px;text-align:center;opacity:0}
+  #cap .who{font-size:26px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;
+    margin-bottom:10px;color:#ffcf40}
+  #cap .line{font-size:38px;font-weight:800;line-height:1.28;text-shadow:0 4px 20px #000c}
+
+  #foot{position:absolute;left:0;right:0;bottom:48px;text-align:center;
+    font-size:26px;font-weight:700;color:#5c7a68;letter-spacing:.08em;opacity:0}
+</style></head>
+<body>
+<div id="poster"><img src="poster.jpg" width="1248" height="832"></div>
+<div id="capbar"></div>
+<div id="cap"><div class="who" id="capWho"></div><div class="line" id="capLine"></div></div>
+<div id="foot"></div>
+<script>
+(function(){
+  const D=window.__DATA, $=(id)=>document.getElementById(id);
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const p=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+  const outCubic=(x)=>1-Math.pow(1-x,3);
+
+  $('foot').textContent = D.handle || '';
+
+  const SCALE = 1920 / 832; // exact height fill, no letterbox
+  const MIN_TX = 1080 - 1248 * SCALE, MAX_TX = 0; // clamp so we never pan past an edge
+
+  const byKey = {};
+  for (const c of D.cast) byKey[c.key] = c;
+
+  const items = (D.items || []).filter((it) => byKey[it.speakerKey]);
+  // Keyframes: an establishing wide-ish pan at t=0 (centred on the first
+  // speaker already, since the skit opens on them with no separate cold
+  // open), then one per line. Stateless by design - seek(t) must reproduce
+  // any frame from t alone, so this interpolates between fixed keyframes
+  // rather than tracking "current" state across calls.
+  const targetFor = (cx) => clamp(540 - cx * SCALE, MIN_TX, MAX_TX);
+  const kf = [{ t: -1, tx: items.length ? targetFor(byKey[items[0].speakerKey].cx) : 0 }];
+  for (const it of items) kf.push({ t: it.at, tx: targetFor(byKey[it.speakerKey].cx) });
+
+  function panX(t) {
+    let j = 0;
+    while (j + 1 < kf.length && kf[j + 1].t <= t) j++;
+    const cur = kf[j], next = kf[j + 1];
+    if (!next) return cur.tx;
+    // Hold on the current speaker's position until just before the next one
+    // starts, then ease over - transitioning at kf[j].t (this speaker's own
+    // start) instead arrives at the next target long before they're done
+    // talking, since a line runs several seconds but the pan only took 0.5s.
+    const transitionStart = next.t - 0.5;
+    const prog = outCubic(clamp((t - transitionStart) / 0.5, 0, 1));
+    return cur.tx + (next.tx - cur.tx) * prog;
+  }
+
+  function seek(t) {
+    const tx = panX(t);
+    $('poster').style.transform = `translateX(${tx}px) scale(${SCALE})`;
+
+    let current = null;
+    for (const it of items) if (t >= it.at && t < it.at + it.dur) current = it;
+
+    if (current) {
+      $('cap').style.opacity = '1';
+      $('capWho').textContent = current.name || '';
+      $('capLine').textContent = current.text || '';
+    } else {
+      $('cap').style.opacity = '0';
+    }
+
+    const rawEnd = D.totalDuration || (items.length ? Math.max(...items.map((it) => it.at + it.dur)) : 1);
+    const lastAt = rawEnd + 0.4;
+    $('foot').style.opacity = String(p(t, lastAt + 0.3, lastAt + 0.9));
+  }
+
+  seek(0);
+  const rawEnd = D.totalDuration || (items.length ? Math.max(...items.map((it) => it.at + it.dur)) : 1);
+  window.__scene = { duration: rawEnd + 0.4 + 2.6, seek, beats: items.map((it) => it.at), meta: { lines: items.length } };
+})();
+</script></body></html>
